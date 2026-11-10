@@ -46,4 +46,26 @@ class HolidayPaymentTest extends TestCase
         $this->assertSame('49000.00', (string) $this->walletFor($customer)->fresh()->balance);
         $this->postJson("/api/holiday-bookings/{$id}/confirm", ['wallet_amount' => 0])->assertStatus(409);
     }
+
+    public function test_visa_application_is_priced_per_applicant_and_paid(): void
+    {
+        $master = $this->createMasterTenant();
+        $this->seed(\Database\Seeders\VisaSampleProductSeeder::class);
+        $customer = $this->createUserForTenant($master, User::ROLE_CUSTOMER);
+        app(WalletService::class)->credit($this->walletFor($customer), '50000.00', WalletLedgerEntry::REF_TOPUP);
+
+        $product = $this->getJson('/api/visa?q=Thailand')->assertOk()->assertJsonMissingPath('data.0.net_price')->json('data.0');
+
+        Sanctum::actingAs($customer, ['*']);
+        $hold = $this->postJson("/api/visa/{$product['id']}/applications", [
+            'travel_date' => now()->addDays(30)->toDateString(),
+            'applicants' => [['name' => 'Asha Rao', 'passport_number' => 'Z1234567'], ['name' => 'Ravi Rao', 'passport_number' => 'Y7654321']],
+        ])->assertCreated()->assertJsonPath('data.status', Booking::STATUS_HELD)->assertJsonMissingPath('data.markup_amount');
+
+        $this->assertEqualsWithDelta((float) $product['sell_price'] * 2, (float) $hold->json('data.total_amount'), 0.01);
+
+        $this->postJson('/api/visa-bookings/'.$hold->json('data.id').'/confirm', ['wallet_amount' => $hold->json('data.total_amount')])
+            ->assertOk()->assertJsonPath('data.status', Booking::STATUS_CONFIRMED);
+        $this->getJson('/api/my-bookings')->assertOk()->assertJsonPath('data.0.summary', 'Tourist e-Visa · Thailand');
+    }
 }

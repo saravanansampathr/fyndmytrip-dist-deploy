@@ -22,7 +22,7 @@ use App\Http\Controllers\Api\MyPaymentsController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\RecentSearchController;
 use App\Http\Controllers\Api\HolidayBookingController;
-use App\Http\Controllers\Api\HolidayPaymentController;
+use App\Http\Controllers\Api\CatalogBookingPaymentController;
 use App\Http\Controllers\Api\HolidayPackageController;
 use App\Http\Controllers\Api\HolidayPackagePdfController;
 use App\Http\Controllers\Api\HolidayPackageSearchController;
@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\SupplierConnectionController;
 use App\Http\Controllers\Api\TenantController;
 use App\Http\Controllers\Api\TenantUserController;
 use App\Http\Controllers\Api\WhiteLabelController;
+use App\Http\Controllers\Api\VisaApplicationController;
 use App\Http\Controllers\Api\VisaProductController;
 use App\Http\Controllers\Api\VisaProductSearchController;
 use App\Http\Controllers\Api\WalletController;
@@ -435,7 +436,10 @@ Route::middleware('tenant')->group(function () {
         // browsing (/visa, /visa/{visaProduct}) is now public too — see
         // that guest-accessible route above, alongside /packages.
         Route::post('/packages/{slug}/bookings', [HolidayBookingController::class, 'store']);
-        Route::post('/holiday-bookings/{booking}/confirm', [HolidayPaymentController::class, 'confirm']);
-        Route::post('/holiday-bookings/{booking}/pay', [HolidayPaymentController::class, 'payGateway']);
+        Route::post('/holiday-bookings/{booking}/confirm', [CatalogBookingPaymentController::class, 'confirm']);
+        Route::post('/holiday-bookings/{booking}/pay', [CatalogBookingPaymentController::class, 'payGateway']);
+        Route::post('/visa/{visaProduct}/applications', [VisaApplicationController::class, 'store']);
+        Route::post('/visa-bookings/{booking}/confirm', [CatalogBookingPaymentController::class, 'confirm']);
+        Route::post('/visa-bookings/{booking}/pay', [CatalogBookingPaymentController::class, 'payGateway']);
     });
 });

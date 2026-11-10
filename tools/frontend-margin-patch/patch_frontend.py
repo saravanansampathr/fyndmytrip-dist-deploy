@@ -39,6 +39,15 @@ for old_ok, new_ok in [
 ]:
     assert s.count(old_ok) == 1, old_ok[:60]
     s = s.replace(old_ok, new_ok, 1)
+# Visa: "Apply now" did nothing. It now opens an applicant form that
+# creates the application and hands over to the same payment step.
+for old_ok, new_ok in [
+    ("function Yse(){kY(`Visa Services", "function Yse(){let[fmtVa,fmtVaS]=(0,x.useState)(null);kY(`Visa Services"),
+    ("(0,U.jsx)(`button`,{className:`rounded-md bg-brand-teal px-3 py-2 text-sm font-medium text-white hover:bg-brand-teal-dark`,children:`Apply now`})]}),Xse(e)&&",
+     "(0,U.jsx)(`button`,{type:`button`,onClick:()=>fmtVaS(fmtVa===e.id?null:e.id),className:`rounded-md bg-brand-teal px-3 py-2 text-sm font-medium text-white hover:bg-brand-teal-dark`,children:fmtVa===e.id?`Close`:`Apply now`})]}),fmtVa===e.id&&(0,U.jsx)(FmtVisaApply,{product:e}),Xse(e)&&"),
+]:
+    assert s.count(old_ok) == 1, old_ok[:60]
+    s = s.replace(old_ok, new_ok, 1)
 h = hashlib.sha256(s.encode()).hexdigest()[:8]
 new_js = f'index-{h}.js'
 if os.path.exists(OUT): shutil.rmtree(OUT)

@@ -33,6 +33,10 @@ class VisaProductSearchController extends Controller
             ->orderBy('destination_country_name')
             ->paginate($request->integer('per_page', 25));
 
+        if (! \App\Http\Resources\BookingResource::canSeeMargin($request)) {
+            $products->getCollection()->each->makeHidden(['net_price', 'markup_percent', 'supplier_product_ref']);
+        }
+
         return response()->json($products);
     }
 
@@ -45,6 +49,10 @@ class VisaProductSearchController extends Controller
                 && ($visaProduct->tenant_id === null || $visaProduct->tenant_id === $user?->tenant_id),
             404
         );
+
+        if (! \App\Http\Resources\BookingResource::canSeeMargin($request)) {
+            $visaProduct->makeHidden(['net_price', 'markup_percent', 'supplier_product_ref']);
+        }
 
         return response()->json(['data' => $visaProduct]);
     }

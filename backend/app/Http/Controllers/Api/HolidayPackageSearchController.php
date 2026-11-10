@@ -47,6 +47,8 @@ class HolidayPackageSearchController extends Controller
             ->when(! $request->filled('sort'), fn ($q) => $q->orderByDesc('created_at'))
             ->paginate($request->integer('per_page', 12));
 
+        $packages->getCollection()->each(fn (HolidayPackage $p) => $this->hideCost($request, $p));
+
         return response()->json($packages);
     }
 
@@ -60,6 +62,8 @@ class HolidayPackageSearchController extends Controller
             ->where(fn ($q) => $this->scopeVisibleTo($q, $user))
             ->with(['itineraryDays', 'priceTiers', 'media'])
             ->firstOrFail();
+
+        $this->hideCost($request, $package);
 
         return response()->json(['data' => $package]);
     }
@@ -234,5 +238,22 @@ class HolidayPackageSearchController extends Controller
             ->orWhere('tenant_id', $user->tenant_id)
             ->orWhere('share_with_network', true)
             ->when(is_null($user->tenant_id), fn ($q) => $q->orWhere('share_on_platform_site', true));
+    }
+
+    /**
+     * The public storefront shows the selling price only — never the
+     * catalogue's net cost or markup %, which this open endpoint used to
+     * return to anyone (signed in or not).
+     */
+    protected function hideCost(Request $request, HolidayPackage $package): void
+    {
+        if (\App\Http\Resources\BookingResource::canSeeMargin($request)) {
+            return;
+        }
+
+        $package->makeHidden(['net_price', 'markup_percent']);
+        if ($package->relationLoaded('priceTiers')) {
+            $package->priceTiers->each->makeHidden(['net_price', 'markup_percent']);
+        }
     }
 }

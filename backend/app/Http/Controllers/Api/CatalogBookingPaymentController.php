@@ -22,16 +22,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Payment for a holiday-package booking. HolidayBookingController::store()
- * only ever held a package booking: there was no way for the traveller to
- * pay for it, so every package booking stayed "held" with nothing collected.
+ * Payment for bookings sold from the platform's own catalogue: holiday
+ * packages and visa applications. HolidayBookingController::store() only
+ * ever held a package booking: there was no way for the traveller to pay
+ * for it, so every package booking stayed "held" with nothing collected.
  *
  * Same wallet / gateway / wallet+gateway split as every other module's
  * confirm()+payGateway(). A paid package booking becomes CONFIRMED (the
  * operations team then issues the vouchers); there is no supplier ticketing
  * call because packages are sold from the platform's own catalogue.
  */
-class HolidayPaymentController extends Controller
+class CatalogBookingPaymentController extends Controller
 {
     public function __construct(
         protected WalletService $walletService,
@@ -160,10 +161,10 @@ class HolidayPaymentController extends Controller
         return new BookingResource($booking->fresh(['passengers', 'segments']));
     }
 
-    /** Only the traveller who booked it (or platform staff) pays for a package booking. */
+    /** Only the traveller who booked it (or platform staff) pays for it. */
     protected function guard(Booking $booking, User $user): void
     {
-        abort_unless($booking->module === Booking::MODULE_HOLIDAY, 404);
+        abort_unless(in_array($booking->module, [Booking::MODULE_HOLIDAY, Booking::MODULE_VISA], true), 404);
         abort_unless(
             (int) $booking->created_by_user_id === (int) $user->id || in_array($user->role, [User::ROLE_SUPER_ADMIN, User::ROLE_STAFF], true),
             403,

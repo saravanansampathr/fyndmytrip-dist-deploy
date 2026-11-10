@@ -143,6 +143,7 @@ class MyBookingsController extends Controller
             Booking::MODULE_INSURANCE => trim(($meta['plan_name'] ?? 'Insurance plan').(($meta['destination'] ?? null) ? ' · '.$meta['destination'] : '')),
             Booking::MODULE_CRUISE => trim(($meta['cruise_line'] ?? 'Cruise').' · '.($meta['departure_port'] ?? '—').' → '.($meta['arrival_port'] ?? '—')),
             Booking::MODULE_ACTIVITY => trim(($meta['category'] ?? 'Activity').(($meta['city'] ?? null) ? ' · '.$meta['city'] : '')),
+            Booking::MODULE_VISA => trim(($meta['visa_type'] ?? 'Visa').(($meta['destination_country_name'] ?? null) ? ' · '.$meta['destination_country_name'] : '')),
             default => ucfirst($booking->module),
         };
     }
