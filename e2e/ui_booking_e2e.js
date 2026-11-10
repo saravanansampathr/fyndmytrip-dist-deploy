@@ -178,7 +178,15 @@ async function run(browser, email, svc, opts = {}) {
     await page.fill('main input[type=date]', new Date(Date.now() + 40 * 864e5).toISOString().slice(0, 10));
     await page.fill('input[placeholder="Full name"]', 'Asha Rao');
     await click(page, /Add traveler/); await page.locator('input[placeholder="Full name"]').nth(1).fill('Ravi Rao');
-    const est = money((await bodyText(page)).match(/Estimated total\s*\n\s*(₹[\d,.]+)/)[1]);
+    await page.waitForTimeout(800);
+    const twoAdults = money(await page.locator('[data-testid=package-total]').innerText());
+    // Goa has no infant tier: the baby must cost a fraction of an adult, not a full fare.
+    await click(page, /Add traveler/); await page.locator('input[placeholder="Full name"]').nth(2).fill('Baby Rao');
+    await page.locator('select').filter({ has: page.locator('option[value=infant]') }).nth(2).selectOption('infant');
+    await page.waitForTimeout(1200);
+    const est = money(await page.locator('[data-testid=package-total]').innerText());
+    check(`holiday: infant adds ₹${(est - twoAdults).toFixed(2)}, not an adult fare (2 adults ₹${twoAdults})`, est > twoAdults && est - twoAdults < twoAdults / 2 * 0.2, `${twoAdults} -> ${est}`);
+    check('holiday: pricing table lists infant price', /Infant/.test(await bodyText(page)));
     await click(page, /^Request booking$/);
     check('holiday: payment step shown after request', /Pay for your holiday/.test(await bodyText(page)));
     await page.fill('input[aria-label="Amount from wallet"]', '5000');
@@ -226,6 +234,42 @@ async function run(browser, email, svc, opts = {}) {
     check(`my trips lists bookings (${rows.length})`, rows.length > 10);
     check('my trips: every paid booking has an invoice', paidRows.length > 0 && paidRows.every(r => /Invoice/.test(r)), paidRows.filter(r => !/Invoice/.test(r)).join(' || '));
     check('my trips: no JS errors', st.errors.length === 0, st.errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- My Trips: pay for a held booking, and cancel a paid one ----
+  {
+    const { ctx, page, st } = await session(browser, 'customer@fyndmytrip.com');
+    await page.goto(FE + '/packages/kerala-backwaters-hills-kochi-munnar-alleppey'); await page.waitForLoadState('networkidle');
+    await page.fill('main input[type=date]', new Date(Date.now() + 50 * 864e5).toISOString().slice(0, 10));
+    await page.fill('input[placeholder="Full name"]', 'Asha Rao');
+    await click(page, /^Request booking$/);
+    await page.goto(FE + '/my-bookings'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(800);
+    const heldRow = page.locator('tbody tr').filter({ hasText: 'Kerala' }).filter({ has: page.getByRole('button', { name: 'Pay now', exact: true }) }).first();
+    check('my trips: held booking shows Pay now', await heldRow.count() > 0, 'no held row with Pay now');
+    await heldRow.getByRole('button', { name: 'Pay now', exact: true }).click(); await page.waitForTimeout(500);
+    await click(page, /^Pay now ₹/);
+    await click(page, /^Pay ₹/);
+    let t = await bodyText(page);
+    check('my trips: held booking paid from My Trips', /Payment received — your booking is confirmed/.test(t), t.slice(0, 300));
+    await click(page, /^Close$/);
+
+    await page.goto(FE + '/my-bookings'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(800);
+    const before = (await page.locator('tbody tr').allInnerTexts()).filter(r => /Hotels/.test(r) && /\tticketed\t/.test(r)).length;
+    const row = page.locator('tbody tr').filter({ hasText: 'Hotels' }).filter({ hasText: 'ticketed' }).filter({ has: page.getByRole('button', { name: 'Cancel', exact: true }) }).first();
+    await row.getByRole('button', { name: 'Cancel', exact: true }).click(); await page.waitForTimeout(500);
+    await click(page, /^Cancel booking$/);
+    t = await bodyText(page);
+    const refund = money((t.match(/Refund to your wallet\s*\n?\s*(₹[\d,.]+)/) || [])[1]);
+    check(`my trips: cancellation quote shows refund ₹${refund}`, refund >= 0 && /Cancellation charge/.test(t), t.slice(0, 300));
+    await click(page, /^Yes, cancel booking$/);
+    t = await bodyText(page);
+    check('my trips: booking cancelled by the traveller', /Booking cancelled\./.test(t), t.slice(0, 300));
+    await click(page, /^Close$/);
+    await page.goto(FE + '/my-bookings'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(800);
+    const after = (await page.locator('tbody tr').allInnerTexts()).filter(r => /Hotels/.test(r) && /\tticketed\t/.test(r)).length;
+    check(`my trips: cancelled booking leaves the ticketed list (${before} -> ${after})`, after === before - 1);
+    check('my trips actions: no JS errors', st.errors.length === 0, st.errors.join(' | '));
     await ctx.close();
   }
 

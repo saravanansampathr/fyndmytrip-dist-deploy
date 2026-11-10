@@ -47,7 +47,10 @@ class HolidayPackageSearchController extends Controller
             ->when(! $request->filled('sort'), fn ($q) => $q->orderByDesc('created_at'))
             ->paginate($request->integer('per_page', 12));
 
-        $packages->getCollection()->each(fn (HolidayPackage $p) => $this->hideCost($request, $p));
+        $packages->getCollection()->each(function (HolidayPackage $p) use ($request) {
+            $this->presentPrices($request, $p, withTiers: false);
+            $this->hideCost($request, $p);
+        });
 
         return response()->json($packages);
     }
@@ -63,6 +66,7 @@ class HolidayPackageSearchController extends Controller
             ->with(['itineraryDays', 'priceTiers', 'media'])
             ->firstOrFail();
 
+        $this->presentPrices($request, $package, withTiers: true);
         $this->hideCost($request, $package);
 
         return response()->json(['data' => $package]);
@@ -137,6 +141,7 @@ class HolidayPackageSearchController extends Controller
             ->where(fn ($q) => $this->scopeVisibleTo($q, $user))
             ->with(['itineraryDays', 'priceTiers'])
             ->firstOrFail();
+        $this->presentPrices($request, $package, withTiers: true);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:191'],
@@ -238,6 +243,55 @@ class HolidayPackageSearchController extends Controller
             ->orWhere('tenant_id', $user->tenant_id)
             ->orWhere('share_with_network', true)
             ->when(is_null($user->tenant_id), fn ($q) => $q->orWhere('share_on_platform_site', true));
+    }
+
+    /**
+     * Show the prices this viewer will actually be charged: every
+     * occupancy type (children and infants get their own price even when
+     * the package has no tier for them), with the viewer's own margin
+     * rule applied per person — the same pricing the booking uses.
+     */
+    public function presentPrices(Request $request, HolidayPackage $package, bool $withTiers): void
+    {
+        $user = $request->user();
+        $tenant = $user?->tenant ?? $request->attributes->get('resolved_tenant') ?? app(TenantContext::class)->get();
+        $role = match ($user?->role) {
+            \App\Models\User::ROLE_AGENT, \App\Models\User::ROLE_PARTNER_ADMIN => 'agent',
+            \App\Models\User::ROLE_SUB_AGENT => 'sub_agent',
+            default => 'b2c',
+        };
+        $context = [
+            'passenger_count' => 1,
+            'destination' => $package->destination_city ?? $package->route_summary,
+            'is_international' => $package->booking_scope === HolidayPackage::SCOPE_INTERNATIONAL,
+            'supplier_code' => $package->supplier_code,
+            'user' => $user,
+        ];
+        $markup = app(\App\Domains\Suppliers\Services\MarkupService::class);
+        $sell = fn (string $catalog) => $tenant
+            ? $markup->applyMarkup($tenant, \App\Domains\Booking\Models\Booking::MODULE_HOLIDAY, $role, $catalog, $context)['gross_amount']
+            : $catalog;
+
+        if ($withTiers) {
+            $tiers = collect(array_keys(HolidayPackage::OCCUPANCY_FALLBACK_FACTORS))->map(function (string $occ) use ($package, $sell) {
+                $price = $package->priceForOccupancy($occ);
+                $existing = $package->priceTiers->firstWhere('occupancy_type', $occ);
+                $tier = $existing ? clone $existing : new \App\Domains\Holiday\Models\HolidayPackagePriceTier;
+                $tier->forceFill([
+                    'occupancy_type' => $occ,
+                    'age_label' => $price['age_label'],
+                    'net_price' => $price['net_price'],
+                    'sell_price' => $sell($price['sell_price']),
+                    'currency' => $package->currency,
+                ]);
+                $tier->setAttribute('derived', $price['derived']);
+
+                return $tier;
+            });
+            $package->setRelation('priceTiers', $tiers->values());
+        }
+
+        $package->setAttribute('sell_price', $sell((string) $package->sell_price));
     }
 
     /**

@@ -89,6 +89,9 @@ class HolidayBookingController extends Controller
         // unique-constraint-violation 500 the first time it happened
         // (see HotelBookingController::guestHold()'s identical fix),
         // instead of the friendly validation error below.
+        $request->validate(self::bookingRules());
+        $this->findBookable($slug, null);
+
         $existing = User::query()
             ->where('tenant_id', $tenant->id)
             ->where(function ($query) use ($guest) {
@@ -130,7 +133,7 @@ class HolidayBookingController extends Controller
             return $newUser;
         });
 
-        $booking = $this->createBookingForUser($request, $slug, $user);
+        $booking = $this->createBookingForUser($request, $slug, $user, asGuest: true);
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([
@@ -146,63 +149,13 @@ class HolidayBookingController extends Controller
      * account just created for a guest) — everything past "who is booking
      * this" is identical either way.
      */
-    protected function createBookingForUser(Request $request, string $slug, User $user): Booking
+    protected function createBookingForUser(Request $request, string $slug, User $user, bool $asGuest = false): Booking
     {
-        $package = HolidayPackage::query()
-            ->where('slug', $slug)
-            ->where('status', HolidayPackage::STATUS_ACTIVE)
-            ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $user->tenant_id))
-            ->with(['itineraryDays', 'priceTiers'])
-            ->firstOrFail();
+        $package = $this->findBookable($slug, $asGuest ? null : $user);
+        $data = $request->validate(self::bookingRules());
 
-        $data = $request->validate([
-            'travel_date' => ['required', 'date_format:Y-m-d'],
-            'contact_email' => ['nullable', 'email', 'max:191'],
-            'contact_phone' => ['nullable', 'string', 'max:30'],
-            'travelers' => ['required', 'array', 'min:1', 'max:20'],
-            'travelers.*.name' => ['required', 'string', 'max:191'],
-            'travelers.*.occupancy_type' => ['required', 'in:adult_sharing,adult_single,child_with_bed,child_without_bed,infant'],
-        ]);
-
-        $tierByOccupancy = $package->priceTiers->keyBy('occupancy_type');
-
-        // "Gross" here is the tenant's own COST — the admin/DMC's catalog
-        // price, already inclusive of the platform's own markup — not yet
-        // what the tenant charges its customer. That comes from applying
-        // this tenant's own MarkupRule (if any) on top, below.
-        $catalogAmount = \Brick\Math\BigDecimal::zero();
-        $netAmount = \Brick\Math\BigDecimal::zero();
-        $travelers = [];
-
-        foreach ($data['travelers'] as $traveler) {
-            $tier = $tierByOccupancy->get($traveler['occupancy_type']);
-            $sellPrice = $tier->sell_price ?? $package->sell_price;
-            $netPrice = $tier->net_price ?? $package->net_price;
-
-            $catalogAmount = $catalogAmount->plus((string) $sellPrice);
-            $netAmount = $netAmount->plus((string) $netPrice);
-
-            $travelers[] = [
-                'name' => $traveler['name'],
-                'occupancy_type' => $traveler['occupancy_type'],
-                'price' => (string) $sellPrice,
-            ];
-        }
-
-        $role = $this->markupRoleFor($user);
-
-        $resellerPricing = $this->markupService->applyMarkup(
-            $user->tenant,
-            Booking::MODULE_HOLIDAY,
-            $role,
-            (string) $catalogAmount->toScale(2, \Brick\Math\RoundingMode::HALF_UP),
-            [
-                'passenger_count' => count($travelers),
-                'destination' => $package->destination_city ?? $package->route_summary,
-                'is_international' => $package->booking_scope === HolidayPackage::SCOPE_INTERNATIONAL,
-                'supplier_code' => $package->supplier_code,
-            ],
-        );
+        $priced = $this->priceTravelers($package, $data['travelers'], $user->tenant, $user);
+        ['catalog' => $catalogAmount, 'net' => $netAmount, 'travelers' => $travelers, 'reseller' => $resellerPricing] = $priced;
 
         $grossAmount = \Brick\Math\BigDecimal::of($resellerPricing['gross_amount']);
 
@@ -252,15 +205,105 @@ class HolidayBookingController extends Controller
         return $booking;
     }
 
+    public static function bookingRules(): array
+    {
+        return [
+            'travel_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'contact_email' => ['nullable', 'email', 'max:191'],
+            'contact_phone' => ['nullable', 'string', 'max:30'],
+            'travelers' => ['required', 'array', 'min:1', 'max:20'],
+            'travelers.*.name' => ['required', 'string', 'max:191'],
+            'travelers.*.occupancy_type' => ['required', 'in:adult_sharing,adult_single,child_with_bed,child_without_bed,infant'],
+        ];
+    }
+
+    protected function findBookable(string $slug, ?User $user): HolidayPackage
+    {
+        return HolidayPackage::query()
+            ->where('slug', $slug)
+            ->where('status', HolidayPackage::STATUS_ACTIVE)
+            ->visibleTo($user)
+            ->with(['itineraryDays', 'priceTiers'])
+            ->firstOrFail();
+    }
+
+    /**
+     * POST /packages/{slug}/quote — the exact amount a booking for this
+     * traveller mix will be charged (occupancy prices plus the viewer's
+     * margin), so the package page shows the real total before booking.
+     */
+    public function quote(Request $request, string $slug)
+    {
+        $user = $request->user('sanctum');
+        $tenant = $user?->tenant ?? $request->attributes->get('resolved_tenant') ?? app(TenantContext::class)->get();
+        abort_if(! $tenant, 422, 'Unable to resolve which storefront this quote is for.');
+
+        $data = $request->validate([
+            'travelers' => ['required', 'array', 'min:1', 'max:20'],
+            'travelers.*.occupancy_type' => ['required', 'in:adult_sharing,adult_single,child_with_bed,child_without_bed,infant'],
+        ]);
+
+        $package = $this->findBookable($slug, $user);
+        $priced = $this->priceTravelers($package, $data['travelers'], $tenant, $user);
+
+        return response()->json(['data' => [
+            'total_amount' => $priced['reseller']['gross_amount'],
+            'currency' => $package->currency,
+            'travelers' => array_map(fn ($t) => ['occupancy_type' => $t['occupancy_type'], 'price' => $t['price']], $priced['travelers']),
+        ]]);
+    }
+
+    /**
+     * @return array{catalog: \Brick\Math\BigDecimal, net: \Brick\Math\BigDecimal, travelers: array, reseller: array{gross_amount: string, markup_amount: string}}
+     */
+    protected function priceTravelers(HolidayPackage $package, array $travelersIn, $tenant, ?User $user): array
+    {
+        // "Gross" here is the tenant's own COST — the admin/DMC's catalog
+        // price, already inclusive of the platform's own markup — not yet
+        // what the tenant charges its customer. That comes from applying
+        // this tenant's own MarkupRule (if any) on top.
+        $catalogAmount = \Brick\Math\BigDecimal::zero();
+        $netAmount = \Brick\Math\BigDecimal::zero();
+        $travelers = [];
+
+        foreach ($travelersIn as $traveler) {
+            $price = $package->priceForOccupancy($traveler['occupancy_type']);
+            $catalogAmount = $catalogAmount->plus($price['sell_price']);
+            $netAmount = $netAmount->plus($price['net_price']);
+
+            $travelers[] = [
+                'name' => $traveler['name'] ?? null,
+                'occupancy_type' => $traveler['occupancy_type'],
+                'price' => $price['sell_price'],
+            ];
+        }
+
+        $resellerPricing = $this->markupService->applyMarkup(
+            $tenant,
+            Booking::MODULE_HOLIDAY,
+            $this->markupRoleFor($user),
+            (string) $catalogAmount->toScale(2, \Brick\Math\RoundingMode::HALF_UP),
+            [
+                'passenger_count' => count($travelers),
+                'destination' => $package->destination_city ?? $package->route_summary,
+                'is_international' => $package->booking_scope === HolidayPackage::SCOPE_INTERNATIONAL,
+                'supplier_code' => $package->supplier_code,
+                'user' => $user,
+            ],
+        );
+
+        return ['catalog' => $catalogAmount, 'net' => $netAmount, 'travelers' => $travelers, 'reseller' => $resellerPricing];
+    }
+
     /**
      * Mirrors FlightBookingController::markupRoleFor() — kept as a small
      * per-controller duplicate rather than a shared trait, matching this
      * codebase's existing tolerance for the same 4-line role mapping
      * appearing per booking controller.
      */
-    protected function markupRoleFor(User $user): string
+    protected function markupRoleFor(?User $user): string
     {
-        return match ($user->role) {
+        return match ($user?->role) {
             User::ROLE_AGENT, User::ROLE_PARTNER_ADMIN => 'agent',
             User::ROLE_SUB_AGENT => 'sub_agent',
             default => 'b2c',

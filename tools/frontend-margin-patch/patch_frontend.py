@@ -48,6 +48,22 @@ for old_ok, new_ok in [
 ]:
     assert s.count(old_ok) == 1, old_ok[:60]
     s = s.replace(old_ok, new_ok, 1)
+# My Trips: finish paying for a held booking, or cancel your own booking
+# (refund quote first) — FmtTripActions in holiday_pay.src.js.
+for old_ok, new_ok in [
+    ("e.summary})]})]}),(0,U.jsxs)(`div`,{className:`mt-6 flex justify-end gap-2`,children:[(0,U.jsx)(J,{variant:`secondary`,onClick:t,children:`Close`})",
+     "e.summary})]})]}),(0,U.jsx)(FmtTripActions,{booking:e},e.id),(0,U.jsxs)(`div`,{className:`mt-6 flex justify-end gap-2`,children:[(0,U.jsx)(J,{variant:`secondary`,onClick:t,children:`Close`})"),
+    ("(0,U.jsxs)(`td`,{className:`text-right whitespace-nowrap`,children:[e.invoice_url&&(0,U.jsx)(J,{variant:`secondary`,onClick:()=>b(e.id,e.invoice_url)",
+     "(0,U.jsxs)(`td`,{className:`text-right whitespace-nowrap`,children:[e.pay_path?(0,U.jsx)(J,{onClick:()=>_(e.id),children:`Pay now`}):e.can_cancel&&(0,U.jsx)(J,{variant:`secondary`,onClick:()=>_(e.id),children:`Cancel`}),` `,e.invoice_url&&(0,U.jsx)(J,{variant:`secondary`,onClick:()=>b(e.id,e.invoice_url)"),
+    # Package page: show the exact total for the traveller mix (with
+    # children/infant prices and the viewer's margin) from /quote.
+    ("S=zi({queryKey:[`package`,e],queryFn:()=>CY(e),enabled:!!e}),",
+     "S=zi({queryKey:[`package`,e],queryFn:()=>CY(e),enabled:!!e}),fmtQ=zi({queryKey:[`package-quote`,e,i.filter(t=>t.name.trim()).map(t=>t.occupancy_type).join()],queryFn:async()=>{let{data:r}=await K.post(`/packages/${e}/quote`,{travelers:i.filter(t=>t.name.trim()).map(t=>({occupancy_type:t.occupancy_type}))});return r.data},enabled:!!e&&i.some(t=>t.name.trim())}),"),
+    ("children:`Estimated total`}),(0,U.jsxs)(`span`,{className:`text-lg font-bold text-brand-navy`,children:[`₹`,oe.toFixed(2)]})",
+     "children:fmtQ.data?`Total payable`:`Estimated total`}),(0,U.jsxs)(`span`,{className:`text-lg font-bold text-brand-navy`,\"data-testid\":`package-total`,children:[`₹`,(fmtQ.data&&i.some(t=>t.name.trim())?Number(fmtQ.data.total_amount):oe).toFixed(2)]})"),
+]:
+    assert s.count(old_ok) == 1, old_ok[:60]
+    s = s.replace(old_ok, new_ok, 1)
 h = hashlib.sha256(s.encode()).hexdigest()[:8]
 new_js = f'index-{h}.js'
 if os.path.exists(OUT): shutil.rmtree(OUT)

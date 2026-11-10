@@ -87,6 +87,7 @@ Route::middleware('tenant')->group(function () {
     // Guest checkout — "direct customers can book by login/signup or as a
     // guest" — see HolidayBookingController::guestStore()'s docblock.
     Route::post('/packages/{slug}/guest-bookings', [HolidayBookingController::class, 'guestStore']);
+    Route::post('/packages/{slug}/quote', [HolidayBookingController::class, 'quote']);
 
     // Public storefront's flight search — "guest-accessible browsing,
     // login required only to complete a booking" (Platform Roadmap's B2C
@@ -293,6 +294,8 @@ Route::middleware('tenant')->group(function () {
         // "Where is the booking history then?" — every module's bookings
         // for the logged-in user, in one list (see MyBookingsController).
         Route::get('/my-bookings', [MyBookingsController::class, 'index']);
+        Route::get('/my-bookings/{booking}/cancellation-quote', [\App\Http\Controllers\Api\MyBookingCancellationController::class, 'quote']);
+        Route::post('/my-bookings/{booking}/cancel', [\App\Http\Controllers\Api\MyBookingCancellationController::class, 'cancel']);
 
         // Platform Roadmap Phase 7 — "Invoices, generated per booking, per
         // user... visible under that user's own login, not just to
