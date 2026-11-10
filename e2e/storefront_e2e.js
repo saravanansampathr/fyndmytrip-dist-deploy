@@ -16,7 +16,7 @@ const OUT = path.join(process.env.RESULTS_DIR || 'e2e/results', 'storefront');
 fs.mkdirSync(OUT, { recursive: true });
 const ONLY = process.env.TEMPLATES ? process.env.TEMPLATES.split(',').map(Number) : null;
 
-const ORDER = ['flight', 'hotel', 'bus', 'cab', 'holiday', 'cruise', 'activity', 'insurance'];
+const ORDER = ['flight', 'hotel', 'bus', 'cab', 'holiday', 'cruise', 'activity', 'insurance', 'visa'];
 const GUEST_OK = ['flight', 'hotel', 'bus', 'holiday'];
 const PAY = ['upi', 'credit_card', 'fmt_wallet', 'netbanking', 'debit_card'];
 const results = [];
@@ -50,7 +50,7 @@ async function apiGet(p, token) {
     const svc = ORDER[i % ORDER.length];
     const asGuest = GUEST_OK.includes(svc) && i % 2 === 0;
     const method = PAY[i % PAY.length];
-    const tag = `T${String(t.id).padStart(2, '0')} ${t.name} [${svc}${asGuest ? ', guest' : ', signed in'}${svc === 'holiday' ? '' : ', ' + method}]`;
+    const tag = `T${String(t.id).padStart(2, '0')} ${t.name} [${svc}${asGuest ? ', guest' : ', signed in'}, ${method}]`;
     const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
     const page = await ctx.newPage();
     const errors = [];
@@ -92,7 +92,7 @@ async function apiGet(p, token) {
         await page.$$eval('form[data-trav] details', (ds) => ds.forEach((d) => { d.open = true; }));
         for (const el of await page.locator('[data-pax] input:visible').all()) {
           const name = await el.getAttribute('name');
-          await el.fill(name === 'age' ? '31' : name === 'last_name' ? 'Traveller' : name === 'first_name' ? 'Asha' : 'Asha Traveller');
+          await el.fill(name === 'age' ? '31' : name === 'passport_number' ? 'Z' + String(1000000 + t.id) : name === 'date_of_birth' ? '1990-04-12' : name === 'nationality' ? 'Indian' : name === 'last_name' ? 'Traveller' : name === 'first_name' ? 'Asha' : 'Asha Traveller');
         }
       };
       await fill();
@@ -103,10 +103,12 @@ async function apiGet(p, token) {
       if (t.layout.travellers === 'stepper') await page.click('[data-step="1"] [data-next="2"]');
       await shot('travellers');
       await page.click('form[data-trav] button[type=submit]');
-      if (svc !== 'holiday') {
+      {
         await page.waitForSelector('.pay', { timeout: 20000 });
         await shot('payment');
-        const m = method === 'fmt_wallet' && asGuest ? 'upi' : method; // a brand-new guest has an empty wallet
+        // wallet is only offered when it covers the booking and the trip is domestic
+        const walletShown = await page.locator('[data-pm=fmt_wallet], input[value=fmt_wallet], option[value=fmt_wallet]').count();
+        const m = method === 'fmt_wallet' && !walletShown ? 'upi' : method;
         if (t.layout.payment === 'minimal') await page.selectOption('[data-pm-select]', m);
         else if (t.layout.payment === 'radios') await page.check(`input[name=pm][value=${m}]`);
         else if (t.layout.payment === 'accordion') await page.$eval(`[data-acc=${m}]`, (d) => { d.open = true; });
@@ -118,7 +120,7 @@ async function apiGet(p, token) {
       await shot('confirmation');
       const status = (await page.textContent('[data-status]')).trim();
       const ref = (await page.textContent('[data-ref]')).trim();
-      check(`${tag}: booking ${ref} -> ${status}`, svc === 'holiday' ? !!ref : status === 'ticketed', status);
+      check(`${tag}: booking ${ref} paid -> ${status}`, ['holiday', 'visa'].includes(svc) ? ['confirmed', 'ticketed'].includes(status) : status === 'ticketed', status);
       // the API agrees
       const token = await page.evaluate(() => JSON.parse(sessionStorage.getItem('fmt:token')));
       const [c, mine] = await apiGet('/my-bookings?per_page=100', token);

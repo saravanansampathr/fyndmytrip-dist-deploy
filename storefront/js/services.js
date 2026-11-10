@@ -144,7 +144,7 @@ export const SERVICES = {
     hold: (o, q, pax) => ({ supplier_code: o.supplier_code, external_id: o.external_id, segment: o.segments[0], destination: q.destination, trip_start_date: q.trip_start_date, trip_end_date: q.trip_end_date, passengers: pax.map((p) => ({ name: p.name })) }),
   },
   holiday: {
-    key: 'holiday', label: 'Holidays', noun: 'package', icon: 'palm', method: 'GET', search: '/packages', noPayment: true,
+    key: 'holiday', label: 'Holidays', noun: 'package', icon: 'palm', method: 'GET', search: '/packages',
     fields: [
       { name: 'q', label: 'Destination or package', placeholder: 'Kashmir, Kerala, Bali…', value: '', kind: 'place' },
       { name: 'travel_date', label: 'Travel date', type: 'date', value: () => day(30) },
@@ -162,12 +162,33 @@ export const SERVICES = {
     facts: (o) => [`${o.duration_nights}N / ${o.duration_days}D`, o.category, o.hotel_category, o.package_type].filter(Boolean),
     traveller: [['name', 'Full name'], ['occupancy_type', 'Room sharing', 'select', ['adult_sharing', 'adult_single', 'child_with_bed', 'child_without_bed', 'infant']]],
     bookPath: (o, guest) => `/packages/${o.slug}/${guest ? 'guest-bookings' : 'bookings'}`,
+    payBase: '/holiday-bookings',
     guest: true,
     hold: (o, q, pax) => ({ travel_date: q.travel_date, travelers: pax.map((p) => ({ name: p.name, occupancy_type: p.occupancy_type || 'adult_sharing' })) }),
   },
+  visa: {
+    key: 'visa', label: 'Visa', noun: 'visa', icon: 'passport', method: 'GET', search: '/visa', guest: null, payBase: '/visa-bookings',
+    fields: [
+      { name: 'q', label: 'Country you are visiting', placeholder: 'Dubai, Singapore, Thailand…', value: '', kind: 'place' },
+      { name: 'travel_date', label: 'Travel date', type: 'date', value: () => day(30) },
+      { name: 'travellers', label: 'Applicants', type: 'number', value: 1, min: 1, max: 10 },
+    ],
+    body: (q) => ({ q: q.q, per_page: 50 }),
+    offers: (r) => r.data || [],
+    pax: (q) => +q.travellers || 1,
+    id: (o) => o.id,
+    price: (o) => Number(o.sell_price),
+    refundable: () => false,
+    title: (o) => `${o.destination_country_name} ${o.visa_type}`,
+    subtitle: (o) => `Processed ${o.processing_time_label}`,
+    facts: (o) => [`${o.entry_type} entry`, `Valid ${o.validity_days} days`, `Stay up to ${o.stay_days} days`, o.processing_time_label].filter(Boolean),
+    traveller: [['name', 'Name as on passport'], ['passport_number', 'Passport number'], ['date_of_birth', 'Date of birth', 'date'], ['nationality', 'Nationality']],
+    bookPath: (o) => `/visa/${o.id}/applications`,
+    hold: (o, q, pax) => ({ travel_date: q.travel_date, applicants: pax.map((p) => ({ name: p.name, passport_number: p.passport_number, date_of_birth: p.date_of_birth || undefined, nationality: p.nationality || undefined })) }),
+  },
 };
 
-export const ORDER = ['flight', 'hotel', 'bus', 'cab', 'holiday', 'cruise', 'activity', 'insurance'];
+export const ORDER = ['flight', 'hotel', 'bus', 'cab', 'holiday', 'cruise', 'activity', 'insurance', 'visa'];
 
 export function defaults(svc) {
   const q = {};

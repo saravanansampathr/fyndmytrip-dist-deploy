@@ -4,7 +4,7 @@
 |---|---|
 | `backend/` | Laravel 11 API (PHP 8.2+): tenants (Master → White-label → Agent → Sub-agent, API partners), users and roles, flights, hotels, buses, cabs, holidays, cruises, activities, insurance, visa, wallet and credit, payments, coupons, cashback, commission, margin (markup) rules, refunds, reports, invoices. |
 | `frontend/` | Compiled portal + storefront (Vite/React build 106) with logos, favicon, icons, payment badges and airport/country data. Calls `https://api-demo.fyndmytrip.in/api`. |
-| `storefront/` | Customer booking storefront with **54 complete design templates** (source included, no build step): home and search, results, details, traveller details, payment and confirmation for flights, hotels, buses, cabs, holidays, cruises, activities and insurance. |
+| `storefront/` | Customer booking storefront with **54 complete design templates** (source included, no build step): home and search, results, details, traveller details, payment and confirmation for flights, hotels, buses, cabs, holidays, cruises, activities, insurance and visas. |
 | `tools/frontend-margin-patch/` | How the Margin rules page in `frontend/` was produced (the React source is not in this repo, only the build). |
 | `e2e/` | End-to-end checks: backend tests, an API run and a browser run. |
 
@@ -28,7 +28,7 @@ Frontend: upload the contents of `frontend/` to the web root with an SPA fallbac
 
 ## Storefront and its 54 templates
 
-`storefront/` is a plain HTML/CSS/JS app (ES modules, no build step) for customers. It covers the whole journey for every service: search, results (sort and filters), details (seat map for buses), traveller details with guest checkout or sign-in, payment (UPI, cards, net banking, international card, or the customer's wallet) and the confirmation with ticket/voucher and invoice download. Holidays send a booking request (the API has no payment step for packages).
+`storefront/` is a plain HTML/CSS/JS app (ES modules, no build step) for customers. It covers the whole journey for every service: search, results (sort and filters), details (seat map for buses), traveller details with guest checkout or sign-in, payment (UPI, cards, net banking, international card, or the customer's wallet) and the confirmation with ticket/voucher and invoice download.
 
 Each template is a full design: its own colours, fonts, corner and shadow style, and its own layout for every page: header (7 layouts), home/search (10), results (8), details (5), traveller form (5), payment (6) and footer (4). Any two templates differ on at least 4 of those 7 page layouts. See them all at `/#/templates` on the storefront.
 

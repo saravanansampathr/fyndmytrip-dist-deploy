@@ -21,6 +21,7 @@ const HEADLINES = {
   cruise: ['Set sail', 'Ocean and river cruises with every cabin class.'],
   activity: ['Things to do', 'Tours, experiences and activities wherever you go.'],
   insurance: ['Travel protected', 'Medical, baggage and trip cover from trusted insurers.'],
+  visa: ['Visas made simple', 'Apply online with expert review and status updates.'],
 };
 const POPULAR = {
   flight: [['DEL', 'BOM'], ['BLR', 'DEL'], ['BOM', 'GOI'], ['MAA', 'BLR']],
@@ -31,6 +32,7 @@ const POPULAR = {
   cruise: [['Chennai', 'Colombo'], ['Mumbai', 'Goa'], ['Kochi', 'Lakshadweep'], ['Singapore', 'Phuket']],
   activity: [['Goa'], ['Dubai'], ['Singapore'], ['Rishikesh']],
   insurance: [['Thailand'], ['Dubai'], ['Europe'], ['USA']],
+  visa: [['Singapore'], ['Indonesia'], ['Thailand'], ['United Arab Emirates']],
 };
 
 export async function home(root, ctx) {
@@ -167,13 +169,16 @@ export async function details(root, ctx) {
   const pax = svc.pax(q);
   const unit = svc.price(o);
   const isHotel = ctx.svc === 'hotel';
-  const total = ctx.svc === 'holiday' ? unit * pax : (['flight', 'cruise', 'activity', 'insurance'].includes(ctx.svc) ? unit * pax : unit);
+  // flights, packages and visas are priced per traveller; other services'
+  // results already show the price for the whole party
+  const total = ['flight', 'holiday', 'visa'].includes(ctx.svc) ? unit * pax : unit;
   const fare = `<div class="fare"><h3>Fare summary</h3><dl><dt>${esc(svc.title(o))}</dt><dd>${money(unit, o.currency)}${total !== unit ? ` × ${pax}` : ''}</dd>${isHotel ? `<dt>Rooms × nights</dt><dd>${q.rooms} × ${o.nights}</dd>` : ''}<dt class="tot">Estimated total</dt><dd class="tot">${money(total, o.currency)}</dd></dl><p class="muted small">Taxes included. The final price is confirmed when you continue.</p></div>`;
   const segs = (o.segments || []).map((s) => `<li><b>${esc(s.origin)}</b> → <b>${esc(s.destination)}</b><span>${s.departure_at ? fmtDate(s.departure_at.slice(0, 10)) + ' ' + s.departure_at.slice(11, 16) : ''}${s.arrival_at ? ' – ' + s.arrival_at.slice(11, 16) : ''}</span>${s.flight_number ? `<small>${esc(s.flight_number)} · ${esc(s.aircraft_type || '')}</small>` : ''}</li>`).join('');
   const policy = o.cancellation_policy ? `<ul class="policy">${o.cancellation_policy.bands.map((b) => `<li>${esc(b.label)}: <b>${Number(b.refund_percentage)}% refund</b></li>`).join('')}</ul>` : `<p>${svc.refundable(o) ? 'This booking is refundable. Cancellation charges may apply.' : 'This booking is non-refundable.'}</p>`;
+  const visaInfo = ctx.svc === 'visa' ? `<h3>Documents required</h3><ul class="ticks">${(o.documents_required || []).map((x) => `<li>${icon('check', 16)} ${esc(x)}</li>`).join('')}</ul><h3>Included</h3><ul class="plain">${(o.included_services || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
   const pkg = ctx.svc === 'holiday' ? `<h3>Inclusions</h3><ul class="ticks">${(o.inclusions || []).map((x) => `<li>${icon('check', 16)} ${esc(x)}</li>`).join('')}</ul><h3>Exclusions</h3><ul class="plain">${(o.exclusions || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${o.itinerary ? `<h3>Itinerary</h3><ol class="itin">${(o.itinerary || []).map((d) => `<li><b>${esc(d.title || 'Day ' + d.day)}</b><p>${esc(d.description || '')}</p></li>`).join('')}</ol>` : ''}` : '';
   const seatUI = svc.seats ? `<div class="seat-pick" id="seat-pick"><h3>Choose ${pax} seat${pax > 1 ? 's' : ''}</h3><p class="muted">Loading seat map…</p></div>` : '';
-  const overview = `${facts(svc, o, 8)}${segs ? `<h3>Journey</h3><ul class="segs">${segs}</ul>` : ''}${pkg}`;
+  const overview = `${facts(svc, o, 8)}${segs ? `<h3>Journey</h3><ul class="segs">${segs}</ul>` : ''}${pkg}${visaInfo}`;
   const btn = `<button class="btn btn-primary btn-lg" data-continue>Continue ${icon('arrow', 18)}</button>`;
   const head = `<div class="d-head">${thumb(svc, o)}<div><span class="eyebrow">${svc.label}</span><h1>${esc(svc.title(o))}</h1><p class="muted">${esc(svc.subtitle(o))}</p></div></div>`;
   const crumbs = `<nav class="crumbs wrap"><a href="#/?s=${ctx.svc}">Home</a> / <a href="#/results/${ctx.svc}?${qs(q)}">Results</a> / <span>Details</span> / <span class="muted">Travellers</span> / <span class="muted">Payment</span></nav>`;
@@ -247,7 +252,7 @@ export async function travellers(root, ctx) {
   const who = u ? `<div class="signed">${icon('user', 18)} Booking as <b>${esc(u.name)}</b> (${esc(u.email)})</div>`
     : `<div class="who"><div class="who-opt"><h4>Have an account?</h4><p class="muted">Sign in to use your wallet and see this booking in My bookings.</p><div class="grid-2"><label class="fld"><span>Email</span><input name="login_email" type="email" autocomplete="username"></label><label class="fld"><span>Password</span><input name="login_password" type="password" autocomplete="current-password"></label></div><button type="button" class="btn btn-ghost" data-login>Sign in</button></div>${svc.guest ? `<div class="who-opt"><h4>Or continue as a guest</h4><p class="muted">We'll create your account from the contact details below and email your booking.</p><label class="fld"><span>Your full name</span><input name="guest_name" value=""></label></div>` : `<div class="who-opt"><h4>New here?</h4><p class="muted">${svc.label} need an account. Create one in seconds.</p><div class="grid-2"><label class="fld"><span>Full name</span><input name="reg_name"></label><label class="fld"><span>Choose a password</span><input name="reg_password" type="password" minlength="8"></label></div><button type="button" class="btn btn-ghost" data-register>Create account</button></div>`}</div>`;
   const summary = `<aside class="card mini-sum"><h4>${esc(svc.title(pick.offer))}</h4><p class="muted small">${esc(svc.subtitle(pick.offer))}</p>${pick.extra?.seats?.length ? `<p>Seats: <b>${pick.extra.seats.join(', ')}</b></p>` : ''}<p>Estimated <strong>${money(pick.estimate)}</strong></p></aside>`;
-  const go_ = `<button class="btn btn-primary btn-lg" type="submit">${svc.noPayment ? 'Send booking request' : 'Continue to payment'} ${icon('arrow', 18)}</button>`;
+  const go_ = `<button class="btn btn-primary btn-lg" type="submit">Continue to payment ${icon('arrow', 18)}</button>`;
   const v = ctx.t.layout.travellers;
   let form;
   const label = (i) => `${svc.key === 'hotel' ? 'Guest' : 'Traveller'} ${i + 1}${i === 0 ? ' (lead)' : ''}`;
@@ -306,7 +311,7 @@ export async function travellers(root, ctx) {
       const booking = r.data;
       store.set('booking', { svc: ctx.svc, booking, offer: pick.offer });
       ctx.refreshChrome?.();
-      go(svc.noPayment ? `#/done/${ctx.svc}/${booking.id}` : `#/payment/${ctx.svc}/${booking.id}`);
+      go(`#/payment/${ctx.svc}/${booking.id}`);
     } catch (err) { toast(err.message); busy(btn, false); }
   });
 }
@@ -325,8 +330,13 @@ export async function payment(root, ctx) {
   const svc = SERVICES[ctx.svc];
   const saved = store.get('booking');
   if (!auth.token) { go('#/login'); return; }
+  const payBase = svc.payBase || svc.base;
   let booking;
-  try { booking = (await api('GET', `${svc.base}/${ctx.id}`)).data; } catch (e) { root.innerHTML = `<div class="wrap empty"><h3>Booking not found</h3><p>${esc(e.message)}</p></div>`; return; }
+  try {
+    // packages and visas have no single-booking GET; use the hold response
+    booking = svc.base ? (await api('GET', `${svc.base}/${ctx.id}`)).data : (saved && String(saved.booking.id) === String(ctx.id) ? saved.booking : null);
+    if (!booking) throw new Error('Please start the booking again.');
+  } catch (e) { root.innerHTML = `<div class="wrap empty"><h3>Booking not found</h3><p>${esc(e.message)}</p></div>`; return; }
   if (booking.status !== 'held') { go(`#/done/${ctx.svc}/${ctx.id}`); return; }
   let wallet = null;
   try { wallet = (await api('GET', '/wallet')).data; } catch { /* no wallet */ }
@@ -361,10 +371,10 @@ export async function payment(root, ctx) {
     busy(btn, true, 'Processing payment…');
     try {
       let r;
-      if (chosen === 'fmt_wallet') r = await api('POST', `${svc.base}/${ctx.id}/confirm`, { wallet_amount: total.toFixed(2) });
+      if (chosen === 'fmt_wallet') r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: total.toFixed(2) });
       else {
-        r = await api('POST', `${svc.base}/${ctx.id}/confirm`, { wallet_amount: 0 });
-        if (r.requires_payment) r = await api('POST', `${svc.base}/${ctx.id}/pay`, { method: chosen });
+        r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: 0 });
+        if (r.requires_payment) r = await api('POST', `${payBase}/${ctx.id}/pay`, { method: chosen });
       }
       store.set('booking', { ...(saved || {}), booking: r.data });
       go(`#/done/${ctx.svc}/${ctx.id}`);
@@ -380,8 +390,7 @@ export async function done(root, ctx) {
   if (svc.base && auth.token) { try { b = (await api('GET', `${svc.base}/${ctx.id}`)).data; } catch { /* keep cached */ } }
   if (!b) { root.innerHTML = '<div class="wrap empty"><h3>Booking not found</h3></div>'; return; }
   const ok = ['ticketed', 'confirmed'].includes(b.status);
-  const pending = !svc.base;
-  root.innerHTML = `<section class="wrap narrow done"><div class="card done-card ${ok ? 'ok' : ''}"><div class="done-ic">${icon(ok || pending ? 'check' : 'lock', 40)}</div><h1>${ok ? 'Booking confirmed' : pending ? 'Booking request received' : 'Booking ' + esc(b.status)}</h1><p class="muted">${pending ? 'Our holiday experts will confirm availability and send payment details to ' + esc(b.contact_email || '') + '.' : 'A confirmation has been sent to ' + esc(b.contact_email || 'your email') + '.'}</p><dl><dt>Booking reference</dt><dd data-ref>${esc(b.booking_code || b.booking_reference || b.id)}</dd><dt>Status</dt><dd data-status>${esc(b.status)}</dd>${(b.ticket_numbers || []).length ? `<dt>Ticket / voucher no.</dt><dd>${esc(b.ticket_numbers.join(', '))}</dd>` : ''}<dt>Amount</dt><dd>${money(b.total_amount, b.currency)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(b.travel_date_start || ''))}</dd></dl><div class="done-actions">${ok && DOCS[ctx.svc] ? `<button class="btn btn-primary" data-doc="${svc.base}/${b.id}/${DOCS[ctx.svc]}">Download ${DOCS[ctx.svc].replace('.pdf', '')}</button><button class="btn btn-ghost" data-doc="/bookings/${b.id}/invoice.pdf">Download invoice</button>` : ''}<a class="btn btn-ghost" href="#/?s=${ctx.svc}">Book another</a></div></div></section>`;
+  root.innerHTML = `<section class="wrap narrow done"><div class="card done-card ${ok ? 'ok' : ''}"><div class="done-ic">${icon(ok ? 'check' : 'lock', 40)}</div><h1>${ok ? 'Booking confirmed' : 'Booking ' + esc(b.status)}</h1><p class="muted">A confirmation has been sent to ${esc(b.contact_email || 'your email')}.</p><dl><dt>Booking reference</dt><dd data-ref>${esc(b.booking_code || b.booking_reference || b.id)}</dd><dt>Status</dt><dd data-status>${esc(b.status)}</dd>${(b.ticket_numbers || []).length ? `<dt>Ticket / voucher no.</dt><dd>${esc(b.ticket_numbers.join(', '))}</dd>` : ''}<dt>Amount</dt><dd>${money(b.total_amount, b.currency)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(b.travel_date_start || ''))}</dd></dl><div class="done-actions">${ok && DOCS[ctx.svc] ? `<button class="btn btn-primary" data-doc="${svc.base}/${b.id}/${DOCS[ctx.svc]}">Download ${DOCS[ctx.svc].replace('.pdf', '')}</button>` : ''}${ok ? `<button class="btn btn-ghost" data-doc="/bookings/${b.id}/invoice.pdf">Download invoice</button>` : ''}<a class="btn btn-ghost" href="#/?s=${ctx.svc}">Book another</a></div></div></section>`;
   root.querySelectorAll('[data-doc]').forEach((btn) => btn.addEventListener('click', async () => {
     try { const res = await api('GET', btn.dataset.doc, null, { raw: true }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = btn.dataset.doc.split('/').pop(); a.click(); }
     catch (e) { toast('Download failed: ' + e.message); }
