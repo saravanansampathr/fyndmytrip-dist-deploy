@@ -115,5 +115,8 @@ class CheckoutPriceConsistencyTest extends TestCase
         ])->assertCreated();
 
         $this->assertEqualsWithDelta((float) $offer['gross_amount'], (float) $this->total($hold->json('data.id')), 0.01);
+
+        // A traveller never sees the supplier cost or the margin on their booking.
+        $hold->assertJsonMissingPath('data.markup_amount')->assertJsonMissingPath('data.supplier_net_amount');
     }
 }

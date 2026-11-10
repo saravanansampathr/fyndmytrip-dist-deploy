@@ -8,6 +8,7 @@ use App\Domains\Suppliers\Services\MarkupService;
 use App\Domains\Tenancy\Services\TenantContext;
 use App\Domains\Wallet\Models\Wallet;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\BookingResource;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -50,7 +51,7 @@ class HolidayBookingController extends Controller
     {
         $booking = $this->createBookingForUser($request, $slug, $request->user());
 
-        return response()->json(['data' => $booking], 201);
+        return response()->json(['data' => new BookingResource($booking)], 201);
     }
 
     /**
@@ -133,7 +134,7 @@ class HolidayBookingController extends Controller
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([
-            'data' => $booking,
+            'data' => new BookingResource($booking),
             'user' => new UserResource($user),
             'token' => $token,
             'guest_checkout' => true,

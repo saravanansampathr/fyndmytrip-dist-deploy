@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\MyPaymentsController;
 use App\Http\Controllers\Api\NewsletterController;
 use App\Http\Controllers\Api\RecentSearchController;
 use App\Http\Controllers\Api\HolidayBookingController;
+use App\Http\Controllers\Api\HolidayPaymentController;
 use App\Http\Controllers\Api\HolidayPackageController;
 use App\Http\Controllers\Api\HolidayPackagePdfController;
 use App\Http\Controllers\Api\HolidayPackageSearchController;
@@ -434,5 +435,7 @@ Route::middleware('tenant')->group(function () {
         // browsing (/visa, /visa/{visaProduct}) is now public too — see
         // that guest-accessible route above, alongside /packages.
         Route::post('/packages/{slug}/bookings', [HolidayBookingController::class, 'store']);
+        Route::post('/holiday-bookings/{booking}/confirm', [HolidayPaymentController::class, 'confirm']);
+        Route::post('/holiday-bookings/{booking}/pay', [HolidayPaymentController::class, 'payGateway']);
     });
 });

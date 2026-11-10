@@ -1,4 +1,5 @@
-"""Rebuilds frontend/ with the margin-rules page swapped in.
+"""Rebuilds frontend/ with the margin-rules page swapped in and holiday
+package payment added.
 
 The React/TypeScript source of the portal is not in this repo (only the
 compiled Vite build is), so the Margin rules page is written directly in
@@ -22,6 +23,22 @@ s = s[:i] + new_page + s[j:]
 old_nav = "{to:`/markup-rules`,label:`Markup rules`,icon:`⇧`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`]}"
 assert s.count(old_nav) == 1
 s = s.replace(old_nav, "{to:`/markup-rules`,label:`Margin rules`,icon:`⇧`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`,`api_user`]}")
+# Holiday packages: after "Request booking" holds the booking, let the
+# traveller pay for it (wallet / gateway / split) — holiday_pay.src.js.
+s = s.replace('function Use(){', open(os.path.join(HERE, 'holiday_pay.src.js'), encoding='utf-8').read().strip() + 'function Use(){', 1)
+anchor = '[v,y]=(0,x.useState)(!1);async function b(t){'
+assert s.count(anchor) == 1
+s = s.replace(anchor, '[v,y]=(0,x.useState)(!1),[fmtHb,fmtHbS]=(0,x.useState)(null);async function b(t){', 1)
+for old_ok, new_ok in [
+    ("onSuccess:e=>{h(null),_(`Booking ${e.booking_reference.slice(0,8)} held successfully.`)}",
+     "onSuccess:e=>{h(null),fmtHbS(e),_(`Booking ${e.booking_reference.slice(0,8)} held — complete payment below to confirm it.`)}"),
+    ("onSuccess:({booking:e,user:t,token:r})=>{n(zs({user:t,token:r})),h(null),_(",
+     "onSuccess:({booking:e,user:t,token:r})=>{n(zs({user:t,token:r})),h(null),fmtHbS(e),_("),
+    ("g&&(0,U.jsx)(`p`,{className:`text-sm font-medium text-emerald-600`,children:g})]}),(0,U.jsx)(X,{className:`mt-4 space-y-3`,children:D?",
+     "g&&(0,U.jsx)(`p`,{className:`text-sm font-medium text-emerald-600`,children:g}),fmtHb&&(0,U.jsx)(FmtHolidayPay,{booking:fmtHb,onPaid:fmtHbS})]}),(0,U.jsx)(X,{className:`mt-4 space-y-3`,children:D?"),
+]:
+    assert s.count(old_ok) == 1, old_ok[:60]
+    s = s.replace(old_ok, new_ok, 1)
 h = hashlib.sha256(s.encode()).hexdigest()[:8]
 new_js = f'index-{h}.js'
 if os.path.exists(OUT): shutil.rmtree(OUT)

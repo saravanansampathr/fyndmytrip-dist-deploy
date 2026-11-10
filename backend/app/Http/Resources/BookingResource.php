@@ -12,6 +12,8 @@ class BookingResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $showMargin = self::canSeeMargin($request);
+
         return [
             'id' => $this->id,
             'booking_reference' => $this->booking_reference,
@@ -29,8 +31,12 @@ class BookingResource extends JsonResource
             'ticket_numbers' => $this->metadata['ticket_numbers'] ?? [],
             'status' => $this->status,
             'gross_amount' => (string) $this->gross_amount,
-            'supplier_net_amount' => (string) $this->supplier_net_amount,
-            'markup_amount' => (string) $this->markup_amount,
+            // The supplier cost and the margin earned on it are never sent to
+            // a traveller (customers, sub-agents, staff users) — only to
+            // people who run margins (see canSeeMargin()). Search results
+            // already withheld them; the booking itself used to leak them.
+            'supplier_net_amount' => $this->when($showMargin, fn () => (string) $this->supplier_net_amount),
+            'markup_amount' => $this->when($showMargin, fn () => (string) $this->markup_amount),
             'extras_amount' => (string) $this->extras_amount,
             'coupon_code' => $this->coupon_code,
             'discount_amount' => (string) $this->discount_amount,
@@ -102,8 +108,16 @@ class BookingResource extends JsonResource
                 'notes' => $a->notes,
                 'created_at' => $a->created_at,
             ])),
-            'metadata' => $this->metadata,
+            'metadata' => $showMargin ? $this->metadata : \Illuminate\Support\Arr::except($this->metadata ?? [], ['catalog_amount', 'reseller_markup_amount']),
             'created_at' => $this->created_at,
         ];
+    }
+
+    /** Super admin (pricing.view_margin) and anyone who manages margin rules. */
+    public static function canSeeMargin(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user !== null && ($user->hasPermission('pricing.view_margin') || $user->hasPermission('markup.manage'));
     }
 }
