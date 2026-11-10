@@ -311,4 +311,13 @@ class Booking extends Model
     {
         return in_array($this->status, [self::STATUS_CANCELLED, self::STATUS_FAILED, self::STATUS_REFUNDED], true);
     }
+
+    /**
+     * Not paid for yet (or never will be): no ticket, voucher or policy
+     * document may be issued for it.
+     */
+    public function isAwaitingPayment(): bool
+    {
+        return in_array($this->status, [self::STATUS_CART, self::STATUS_HELD, self::STATUS_FAILED], true);
+    }
 }

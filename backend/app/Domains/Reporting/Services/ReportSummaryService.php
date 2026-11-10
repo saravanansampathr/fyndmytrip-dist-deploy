@@ -33,7 +33,14 @@ class ReportSummaryService
         $bookingsQuery = $this->scopedBookings($tenantIds)
             ->whereBetween('created_at', [$from, $to]);
 
-        $totals = (clone $bookingsQuery)
+        // Money figures (revenue, margin, profit, by module/channel/tenant,
+        // trend) only count bookings that were actually paid for. Unpaid
+        // holds, abandoned carts and failed bookings used to be added to
+        // "Total collected" and revenue, overstating both. The by-status
+        // breakdown below still shows every booking.
+        $paidQuery = (clone $bookingsQuery)->whereNotIn('status', [Booking::STATUS_CART, Booking::STATUS_HELD, Booking::STATUS_FAILED]);
+
+        $totals = (clone $paidQuery)
             ->selectRaw('
                 COUNT(*) as bookings_count,
                 COALESCE(SUM(gross_amount), 0) as gross_amount,
@@ -69,7 +76,7 @@ class ReportSummaryService
             ->groupBy('status')
             ->get();
 
-        $byModule = (clone $bookingsQuery)
+        $byModule = (clone $paidQuery)
             ->select('module', DB::raw('COUNT(*) as count'), DB::raw('COALESCE(SUM(total_amount), 0) as total_amount'))
             ->groupBy('module')
             ->get();
@@ -84,7 +91,7 @@ class ReportSummaryService
         // channel that sold it. profit_amount = markup - commission: what the
         // platform actually keeps from that channel's business, as opposed to
         // total_amount, which is gross revenue and says nothing about margin.
-        $byChannel = (clone $bookingsQuery)
+        $byChannel = (clone $paidQuery)
             ->select(
                 'channel',
                 DB::raw('COUNT(*) as count'),
@@ -95,7 +102,7 @@ class ReportSummaryService
             ->groupBy('channel')
             ->get();
 
-        $trend = (clone $bookingsQuery)
+        $trend = (clone $paidQuery)
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as count'), DB::raw('COALESCE(SUM(total_amount), 0) as total_amount'))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
@@ -107,7 +114,7 @@ class ReportSummaryService
         $topTenants = [];
 
         if ($tenantIds === null || count($tenantIds) > 1) {
-            $rows = (clone $bookingsQuery)
+            $rows = (clone $paidQuery)
                 ->select('tenant_id', DB::raw('COUNT(*) as count'), DB::raw('COALESCE(SUM(total_amount), 0) as total_amount'))
                 ->groupBy('tenant_id')
                 ->orderByDesc(DB::raw('COALESCE(SUM(total_amount), 0)'))
@@ -129,7 +136,7 @@ class ReportSummaryService
         // that one channel the same way created_by_user_id already does for
         // the bookings-list "Created by" filter (NULL means no account was
         // ever attached to the booking, i.e. a guest checkout).
-        $directSplit = (clone $bookingsQuery)
+        $directSplit = (clone $paidQuery)
             ->where('channel', Booking::CHANNEL_DIRECT)
             ->selectRaw("CASE WHEN created_by_user_id IS NULL THEN 'guest' ELSE 'customer' END as audience")
             ->selectRaw('COUNT(*) as count')
@@ -143,7 +150,7 @@ class ReportSummaryService
         // out by tenant_id, the same shape top_tenants uses, so "which
         // specific partner" is answerable without a new column: every
         // booking already carries the tenant_id of the partner that made it.
-        $apiPartnerRows = (clone $bookingsQuery)
+        $apiPartnerRows = (clone $paidQuery)
             ->where('channel', Booking::CHANNEL_API_PARTNER)
             ->select('tenant_id', DB::raw('COUNT(*) as count'), DB::raw('COALESCE(SUM(total_amount), 0) as total_amount'))
             ->groupBy('tenant_id')

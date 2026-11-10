@@ -223,6 +223,12 @@ class MyBookingsController extends Controller
     {
         $meta = $booking->metadata ?? [];
 
+        // No ticket/voucher for a booking that hasn't been paid for (the
+        // package itinerary is a public brochure, so it stays available).
+        if ($booking->isAwaitingPayment() && $booking->module !== Booking::MODULE_HOLIDAY) {
+            return null;
+        }
+
         return match ($booking->module) {
             Booking::MODULE_FLIGHT => "/flights/bookings/{$booking->id}/ticket.pdf",
             Booking::MODULE_HOLIDAY => isset($meta['package_slug'])
@@ -250,6 +256,12 @@ class MyBookingsController extends Controller
     protected function invoiceUrlFor(Booking $booking): ?string
     {
         $eligible = [Booking::STATUS_TICKETED, Booking::STATUS_REFUND_PROCESSING, Booking::STATUS_REFUNDED];
+
+        // Holiday packages and visas are fulfilled by the ops team, so a
+        // paid one stays 'confirmed' — it still gets its invoice.
+        if (in_array($booking->module, InvoiceController::CONFIRM_ONLY_MODULES, true)) {
+            $eligible[] = Booking::STATUS_CONFIRMED;
+        }
 
         return in_array($booking->status, $eligible, true) ? "/bookings/{$booking->id}/invoice.pdf" : null;
     }

@@ -77,6 +77,8 @@ class InsuranceBookingController extends Controller
 
     public function policyPdf(Request $request, Booking $booking)
     {
+        abort_if($booking->isAwaitingPayment(), 409, 'Your ticket is issued once payment is complete.');
+
         abort_unless($booking->module === Booking::MODULE_INSURANCE, 404);
 
         $booking->load([

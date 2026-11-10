@@ -139,6 +139,9 @@ Route::middleware('tenant')->group(function () {
     // convention as /packages above (see HolidayPackageSearchController's
     // scopeVisibleTo() docblock); booking a visa product still requires an
     // account, same gap as Cabs/Insurance/Cruises/Activities above.
+    // Exchange rates for the storefront currency switcher — not sensitive,
+    // and guests use the switcher too (it 401'd for every signed-out visitor).
+    Route::get('/currency-rates', [CurrencyRateController::class, 'index']);
     Route::get('/visa', [VisaProductSearchController::class, 'index']);
     Route::get('/visa/{visaProduct}', [VisaProductSearchController::class, 'show']);
 
@@ -199,7 +202,6 @@ Route::middleware('tenant')->group(function () {
         Route::post('/tenants/{tenant}/api-credentials/{credential}/regenerate-secret', [ApiPartnerCredentialController::class, 'regenerateSecret']);
         Route::delete('/tenants/{tenant}/api-credentials/{credential}', [ApiPartnerCredentialController::class, 'destroy']);
 
-        Route::get('/currency-rates', [CurrencyRateController::class, 'index']);
 
         Route::get('/reports/summary', [ReportsController::class, 'summary']);
         Route::get('/reports/bookings', [ReportsController::class, 'bookings']);

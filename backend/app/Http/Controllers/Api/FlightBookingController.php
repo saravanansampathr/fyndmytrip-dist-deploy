@@ -1187,6 +1187,8 @@ class FlightBookingController extends Controller
      */
     public function ticketPdf(Request $request, Booking $booking)
     {
+        abort_if($booking->isAwaitingPayment(), 409, 'Your ticket is issued once payment is complete.');
+
         $booking->load([
             'passengers',
             'segments',
