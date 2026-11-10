@@ -49,6 +49,7 @@ class WalletLedgerEntry extends Model
         'reference_id',
         'remarks',
         'created_by',
+        'created_at',
     ];
 
     protected $casts = [

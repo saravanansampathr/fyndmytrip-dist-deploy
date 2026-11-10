@@ -52,6 +52,9 @@ use Illuminate\Validation\ValidationException;
  */
 class FlightBookingController extends Controller
 {
+    /** Share of the adult fare a lap infant (no seat) is charged. */
+    public const INFANT_FARE_FACTOR = '0.10';
+
     public function __construct(
         protected SupplierOrchestrator $orchestrator,
         protected MarkupService $markupService,
@@ -233,8 +236,10 @@ class FlightBookingController extends Controller
             $legIsInternational = $this->routeClassificationService->isInternationalCode($leg['origin'], $leg['destination']);
 
             $offers = array_map(function (array $item) use ($tenant, $role, $leg, $passengerCount, $legIsInternational) {
+                // Results show the fare per adult, so price one passenger;
+                // hold() prices the whole party.
                 $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_FLIGHT, $role, $item['net_amount'], [
-                    'passenger_count' => $passengerCount,
+                    'passenger_count' => 1,
                     'origin' => $leg['origin'],
                     'destination' => $leg['destination'],
                     'is_international' => $legIsInternational,
@@ -478,6 +483,12 @@ class FlightBookingController extends Controller
         $totalMarkup = \Brick\Math\BigDecimal::of('0.00');
         $legHolds = [];
         $passengerCount = count($data['passengers']);
+        // Results quote the fare "per adult"; the booking is for every
+        // passenger. Adults and children each take a seat and pay the fare;
+        // a lap infant pays INFANT_FARE_FACTOR of it.
+        $infantCount = collect($data['passengers'])->where('passenger_type', 'infant')->count();
+        $fareUnits = BigDecimal::of($passengerCount - $infantCount)
+            ->plus(BigDecimal::of(self::INFANT_FARE_FACTOR)->multipliedBy($infantCount));
 
         foreach ($data['legs'] as $leg) {
             if ($leg['supplier_code'] === FlightInventoryItem::SUPPLIER_CODE) {
@@ -495,7 +506,8 @@ class FlightBookingController extends Controller
             }
 
             $firstSegment = $leg['segments'][0] ?? null;
-            $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_FLIGHT, $role, $fareRule->confirmedNetAmount, [
+            $legNet = (string) BigDecimal::of($fareRule->confirmedNetAmount)->multipliedBy($fareUnits)->toScale(2, RoundingMode::HALF_UP);
+            $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_FLIGHT, $role, $legNet, [
                 'passenger_count' => $passengerCount,
                 'origin' => $firstSegment['origin'] ?? null,
                 'destination' => $firstSegment['destination'] ?? null,
@@ -507,7 +519,7 @@ class FlightBookingController extends Controller
                 'supplier_code' => $leg['supplier_code'],
             ]);
 
-            $totalNet = $totalNet->plus($fareRule->confirmedNetAmount);
+            $totalNet = $totalNet->plus($legNet);
             $totalGross = $totalGross->plus($pricing['gross_amount']);
             $totalMarkup = $totalMarkup->plus($pricing['markup_amount']);
 

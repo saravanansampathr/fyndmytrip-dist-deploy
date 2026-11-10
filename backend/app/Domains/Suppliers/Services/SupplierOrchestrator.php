@@ -61,7 +61,9 @@ class SupplierOrchestrator
                     $this->circuitBreaker->recordSuccess($supplierCode);
 
                     foreach ($items as $item) {
-                        $merged[] = $item->toArray();
+                        $row = $item->toArray();
+                        $this->rememberMockOffer($supplierCode, $row);
+                        $merged[] = $row;
                     }
                 } catch (SupplierException $e) {
                     $this->circuitBreaker->recordFailure($supplierCode);
@@ -79,14 +81,69 @@ class SupplierOrchestrator
     {
         [$adapter, $credentials] = $this->resolveAdapterAndCredentials($tenant, $supplierCode);
 
-        return $adapter->priceCheck($externalId, $credentials);
+        $result = $adapter->priceCheck($externalId, $credentials);
+        $offer = $this->rememberedMockOffer($supplierCode, $externalId);
+
+        if ($offer === null) {
+            return $result;
+        }
+
+        return new FareRuleResult(
+            isStillAvailable: $result->isStillAvailable,
+            confirmedNetAmount: $offer['net_amount'],
+            isRefundable: $offer['is_refundable'] ?? $result->isRefundable,
+            rules: $result->rules,
+        );
     }
 
     public function hold(Tenant $tenant, string $supplierCode, string $externalId, array $passengers): BookingHoldResult
     {
         [$adapter, $credentials] = $this->resolveAdapterAndCredentials($tenant, $supplierCode);
 
-        return $adapter->holdBooking($externalId, $passengers, $credentials);
+        $result = $adapter->holdBooking($externalId, $passengers, $credentials);
+        $offer = $this->rememberedMockOffer($supplierCode, $externalId);
+
+        return $offer === null ? $result : new BookingHoldResult(
+            supplierBookingRef: $result->supplierBookingRef,
+            holdExpiresAt: $result->holdExpiresAt,
+            netAmount: $offer['net_amount'],
+        );
+    }
+
+    /**
+     * The demo MOCK* adapters are stateless: their priceCheck()/holdBooking()
+     * derive a price from a hash of the offer id that has nothing to do with
+     * the price the same offer showed in search, so the amount charged at
+     * checkout never matched the results page (e.g. ₹4,533 shown, ₹5,664
+     * charged). A real supplier re-quotes the fare it actually returned, so
+     * for the mock suppliers only, remember each offer's net price and
+     * refundability at search time and re-confirm exactly that.
+     */
+    protected function rememberMockOffer(string $supplierCode, array $row): void
+    {
+        if (! str_starts_with(strtoupper($supplierCode), 'MOCK') || empty($row['external_id'])) {
+            return;
+        }
+
+        Cache::put($this->mockOfferKey($supplierCode, $row['external_id']), [
+            'net_amount' => (string) $row['net_amount'],
+            'is_refundable' => $row['is_refundable'] ?? null,
+        ], now()->addHours(6));
+    }
+
+    /** @return array{net_amount: string, is_refundable: ?bool}|null */
+    protected function rememberedMockOffer(string $supplierCode, string $externalId): ?array
+    {
+        if (! str_starts_with(strtoupper($supplierCode), 'MOCK')) {
+            return null;
+        }
+
+        return Cache::get($this->mockOfferKey($supplierCode, $externalId));
+    }
+
+    protected function mockOfferKey(string $supplierCode, string $externalId): string
+    {
+        return 'mock-offer:'.strtoupper($supplierCode).':'.$externalId;
     }
 
     public function confirm(Tenant $tenant, string $supplierCode, string $supplierBookingRef): BookingConfirmResult

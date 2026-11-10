@@ -148,6 +148,10 @@ class ActivityBookingController extends Controller
         array_push($offers, ...$this->ownInventoryOffers($tenant, $data['city'], $data['activity_date']));
 
         $offers = array_map(function (array $item) use ($tenant, $role, $data, $travellerCount) {
+            // Activity tickets are priced per person: results show (and
+            // checkout charges) the total for everyone in the search.
+            $item['net_amount_per_person'] = $item['net_amount'];
+            $item['net_amount'] = (string) BigDecimal::of((string) $item['net_amount'])->multipliedBy($travellerCount)->toScale(2, RoundingMode::HALF_UP);
             $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_ACTIVITY, $role, $item['net_amount'], [
                 'passenger_count' => $travellerCount,
                 'origin' => $data['city'],
@@ -164,7 +168,7 @@ class ActivityBookingController extends Controller
         // Same margin-withholding rule as FlightBookingController::search().
         if (! $canViewMargin) {
             $offers = array_map(function (array $offer) {
-                unset($offer['net_amount'], $offer['markup_amount']);
+                unset($offer['net_amount'], $offer['net_amount_per_person'], $offer['markup_amount']);
 
                 return $offer;
             }, $offers);
@@ -254,7 +258,9 @@ class ActivityBookingController extends Controller
             return response()->json(['message' => 'This activity is no longer available. Please search again.'], 409);
         }
 
-        $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_ACTIVITY, $role, $fareRule->confirmedNetAmount, [
+        $totalNet = (string) BigDecimal::of($fareRule->confirmedNetAmount)->multipliedBy($travellerCount)->toScale(2, RoundingMode::HALF_UP);
+
+        $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_ACTIVITY, $role, $totalNet, [
             'passenger_count' => $travellerCount,
             'origin' => $segment['origin'] ?? null,
             'is_international' => false,
@@ -269,7 +275,7 @@ class ActivityBookingController extends Controller
             'supplier_code' => $data['supplier_code'],
             'is_international' => false,
             'gross_amount' => $pricing['gross_amount'],
-            'supplier_net_amount' => (string) BigDecimal::of($fareRule->confirmedNetAmount)->toScale(2, RoundingMode::HALF_UP),
+            'supplier_net_amount' => $totalNet,
             'markup_amount' => $pricing['markup_amount'],
             'travel_date_start' => $data['activity_date'],
             'passenger_count' => $travellerCount,

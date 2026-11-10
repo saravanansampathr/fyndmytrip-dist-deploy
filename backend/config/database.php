@@ -29,6 +29,11 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => 'InnoDB',
+            // Columns that default to CURRENT_TIMESTAMP (wallet ledger,
+            // passengers, status history, cashback…) must be written in the
+            // same zone as Laravel's now() (APP_TIMEZONE), or statements and
+            // booking timelines drift by the server's UTC offset.
+            'timezone' => env('DB_TIMEZONE', (new DateTime('now', new DateTimeZone(env('APP_TIMEZONE', 'Asia/Kolkata'))))->format('P')),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

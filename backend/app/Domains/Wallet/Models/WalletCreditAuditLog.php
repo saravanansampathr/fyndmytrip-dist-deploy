@@ -29,6 +29,7 @@ class WalletCreditAuditLog extends Model
         'old_credit_status',
         'new_credit_status',
         'remarks',
+        'created_at',
     ];
 
     protected $casts = [

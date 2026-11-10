@@ -279,7 +279,12 @@ class HotelBookingController extends Controller
         $offers = $this->orchestrator->search($tenant, $searchRequest);
         array_push($offers, ...$this->ownInventoryOffers($tenant, $data['city'], $data['check_in_date'], $data['check_out_date']));
 
-        $offers = array_map(function (array $item) use ($tenant, $role, $data, $guestCount) {
+        $offers = array_map(function (array $item) use ($tenant, $role, $data, $guestCount, $rooms) {
+            // A supplier quotes one room's stay; the guest is buying $rooms
+            // of them, so results show (and checkout charges) the full stay.
+            $item['net_amount_per_room'] = $item['net_amount'];
+            $item['net_amount'] = (string) BigDecimal::of((string) $item['net_amount'])->multipliedBy($rooms)->toScale(2, RoundingMode::HALF_UP);
+            $item['rooms'] = $rooms;
             $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_HOTEL, $role, $item['net_amount'], [
                 'passenger_count' => $guestCount,
                 'destination' => $data['city'],
@@ -296,7 +301,7 @@ class HotelBookingController extends Controller
         // Same margin-withholding rule as FlightBookingController::search().
         if (! $canViewMargin) {
             $offers = array_map(function (array $offer) {
-                unset($offer['net_amount'], $offer['markup_amount']);
+                unset($offer['net_amount'], $offer['net_amount_per_room'], $offer['markup_amount']);
 
                 return $offer;
             }, $offers);
@@ -498,7 +503,10 @@ class HotelBookingController extends Controller
             return response()->json(['message' => 'This room is no longer available. Please search again.'], 409);
         }
 
-        $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_HOTEL, $role, $fareRule->confirmedNetAmount, [
+        $rooms = (int) ($data['rooms'] ?? 1);
+        $stayNet = (string) BigDecimal::of($fareRule->confirmedNetAmount)->multipliedBy($rooms)->toScale(2, RoundingMode::HALF_UP);
+
+        $pricing = $this->markupService->applyMarkup($tenant, Booking::MODULE_HOTEL, $role, $stayNet, [
             'passenger_count' => $guestCount,
             'destination' => $segment['origin'] ?? null,
             'is_international' => false,
@@ -513,7 +521,7 @@ class HotelBookingController extends Controller
             'supplier_code' => $data['supplier_code'],
             'is_international' => false,
             'gross_amount' => $pricing['gross_amount'],
-            'supplier_net_amount' => (string) BigDecimal::of($fareRule->confirmedNetAmount)->toScale(2, RoundingMode::HALF_UP),
+            'supplier_net_amount' => (string) $stayNet,
             'markup_amount' => $pricing['markup_amount'],
             'travel_date_start' => $data['check_in_date'],
             'travel_date_end' => $data['check_out_date'],
