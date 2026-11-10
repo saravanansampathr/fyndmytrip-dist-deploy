@@ -1,0 +1,10 @@
+/vendor
+/node_modules
+/public/storage
+/public/hot
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+/error_log
+*.sqlite
