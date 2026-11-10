@@ -323,6 +323,10 @@ Route::middleware('tenant')->group(function () {
         Route::post('/flights/bookings/{booking}/pay', [FlightBookingController::class, 'payGateway']);
 
         Route::apiResource('cashback-rules', CashbackRuleController::class)->only(['index', 'store', 'update', 'destroy']);
+        // Registered before the apiResource so 'options'/'preview' aren't
+        // swallowed by the {markup_rule} wildcard.
+        Route::get('/markup-rules/options', [MarkupRuleController::class, 'options']);
+        Route::post('/markup-rules/preview', [MarkupRuleController::class, 'preview']);
         Route::apiResource('markup-rules', MarkupRuleController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('commission-rules', CommissionRuleController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('cancellation-policies', CancellationPolicyController::class)->only(['index', 'store', 'update', 'destroy']);

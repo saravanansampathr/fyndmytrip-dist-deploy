@@ -44,9 +44,42 @@ class MarkupRule extends Model
 
     public const ROLE_SUB_AGENT = 'sub_agent';
 
+    /** Direct customers and guests. */
     public const ROLE_B2C = 'b2c';
 
-    public const ROLES = [self::ROLE_AGENT, self::ROLE_SUB_AGENT, self::ROLE_B2C];
+    /** White-label partner admins (partner_admin). Falls back to 'agent' rules when none exist. */
+    public const ROLE_WHITE_LABEL = 'white_label';
+
+    /** API partner logins (api_user). Falls back to 'b2c' rules when none exist. */
+    public const ROLE_API_PARTNER = 'api_partner';
+
+    /** A tenant's own staff logins (staff_user). Falls back to 'b2c' rules when none exist. */
+    public const ROLE_STAFF = 'staff';
+
+    /** Platform admins booking themselves (super_admin / platform staff). Falls back to 'b2c'. */
+    public const ROLE_ADMIN = 'admin';
+
+    /** Every audience. */
+    public const ROLE_ALL = 'all';
+
+    public const ROLES = [
+        self::ROLE_AGENT, self::ROLE_SUB_AGENT, self::ROLE_B2C, self::ROLE_WHITE_LABEL,
+        self::ROLE_API_PARTNER, self::ROLE_STAFF, self::ROLE_ADMIN, self::ROLE_ALL,
+    ];
+
+    public const ROLE_LABELS = [
+        self::ROLE_ALL => 'Everyone',
+        self::ROLE_B2C => 'Direct customers (B2C)',
+        self::ROLE_AGENT => 'Agents',
+        self::ROLE_SUB_AGENT => 'Sub-agents',
+        self::ROLE_WHITE_LABEL => 'White-label partners',
+        self::ROLE_API_PARTNER => 'API partners',
+        self::ROLE_STAFF => 'Staff users',
+        self::ROLE_ADMIN => 'Admins',
+    ];
+
+    /** module value meaning "every service". */
+    public const MODULE_ALL = 'all';
 
     /**
      * Domestic/international scoping — same three values as CashbackRule
@@ -65,6 +98,8 @@ class MarkupRule extends Model
 
     protected $fillable = [
         'tenant_id',
+        'user_id',
+        'target_tenant_id',
         'name',
         'module',
         'rule_type',
@@ -89,6 +124,21 @@ class MarkupRule extends Model
                 $rule->booking_scope = self::SCOPE_BOTH;
             }
         });
+    }
+
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
+    }
+
+    public function targetTenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Domains\Tenancy\Models\Tenant::class, 'target_tenant_id');
+    }
+
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Domains\Tenancy\Models\Tenant::class, 'tenant_id');
     }
 
     /** The single numeric value this rule carries, whatever its type — percentage or flat amount. */

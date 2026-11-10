@@ -25,6 +25,8 @@ class RolePermissionSeeder extends Seeder
         // this permission alone, so nothing else needs to change.
         $grants = [
             User::ROLE_STAFF => [
+                // Margin (markup) rules for their own tenant — see MarkupRuleController.
+                'markup.manage',
                 'tenant.create', 'tenant.view', 'tenant.manage_users',
                 'booking.view', 'booking.cancel', 'booking.refund', 'booking.manage',
                 'ticket.view', 'ticket.create', 'ticket.manage',
@@ -55,6 +57,8 @@ class RolePermissionSeeder extends Seeder
                 'hotel_group_booking.manage',
             ],
             User::ROLE_PARTNER_ADMIN => [
+                // Margin (markup) rules for their own tenant — see MarkupRuleController.
+                'markup.manage',
                 'tenant.create', 'tenant.view', 'tenant.manage_users',
                 'booking.view', 'booking.create', 'booking.cancel', 'booking.refund', 'booking.manage',
                 'ticket.view', 'ticket.create', 'ticket.manage',
@@ -88,6 +92,8 @@ class RolePermissionSeeder extends Seeder
             // below), it just can no longer spin up a new Sub-Agent
             // tenant. Only a White-Label Partner or platform staff can.
             User::ROLE_AGENT => [
+                // Margin (markup) rules for their own tenant — see MarkupRuleController.
+                'markup.manage',
                 'tenant.view', 'tenant.manage_users',
                 'booking.view', 'booking.create', 'booking.cancel',
                 'ticket.view', 'ticket.create',
@@ -104,6 +110,9 @@ class RolePermissionSeeder extends Seeder
                 'hotel_group_booking.request',
             ],
             User::ROLE_SUB_AGENT => [
+                // Read-only: a Sub-Agent shares its Agent's tenant, so it may
+                // see but not change that tenant's margins (MarkupRuleController).
+                'markup.view',
                 'booking.view', 'booking.create',
                 'ticket.view', 'ticket.create',
                 'wallet.view', 'wallet.topup',
@@ -123,6 +132,8 @@ class RolePermissionSeeder extends Seeder
                 'hotel_group_booking.request',
             ],
             User::ROLE_API_USER => [
+                // Margin (markup) rules for their own tenant — see MarkupRuleController.
+                'markup.manage',
                 'booking.view', 'booking.create',
                 // API partners are explicitly named among who submits
                 // offline payment claims ("partners, Agents, API,
