@@ -103,9 +103,9 @@ class HotelBookingFlowTest extends TestCase
 
         $grossAmount = $booking->gross_amount;
 
-        $confirmResponse = $this->postJson("/api/hotels/bookings/{$bookingId}/confirm");
+        $confirmResponse = $this->confirmViaWallet("/api/hotels/bookings/{$bookingId}/confirm", $bookingId);
 
-        $confirmResponse->assertOk()->assertJsonPath('status', Booking::STATUS_TICKETED);
+        $confirmResponse->assertOk()->assertJsonPath('data.status', Booking::STATUS_TICKETED);
 
         $booking->refresh();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->status);
@@ -143,7 +143,7 @@ class HotelBookingFlowTest extends TestCase
             'guests' => [['name' => 'Broke Traveller', 'age' => 35]],
         ])->json('data.id');
 
-        $this->postJson("/api/hotels/bookings/{$bookingId}/confirm")->assertStatus(402);
+        $this->confirmViaWallet("/api/hotels/bookings/{$bookingId}/confirm", $bookingId)->assertStatus(402);
 
         $booking = Booking::withoutTenantScope()->findOrFail($bookingId);
         $this->assertSame(Booking::STATUS_HELD, $booking->status, 'A failed payment must not advance the booking status.');
@@ -201,7 +201,7 @@ class HotelBookingFlowTest extends TestCase
         $this->assertSame(Booking::STATUS_HELD, $booking->status);
         $this->assertSame(1, $item->fresh()->capacity, 'Holding one room should decrement own-inventory capacity by one.');
 
-        $this->postJson("/api/hotels/bookings/{$bookingId}/confirm")->assertOk();
+        $this->confirmViaWallet("/api/hotels/bookings/{$bookingId}/confirm", $bookingId)->assertOk();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->fresh()->status);
     }
 }

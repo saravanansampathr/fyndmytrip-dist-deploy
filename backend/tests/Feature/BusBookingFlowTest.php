@@ -12,7 +12,7 @@ use App\Domains\Wallet\Services\WalletService;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\TestResponse;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\InteractsWithTenants;
 use Tests\TestCase;
@@ -72,7 +72,10 @@ class BusBookingFlowTest extends TestCase
         $open = [];
         foreach ($map['rows'] as $row) {
             foreach ($row['seats'] as $seat) {
-                if ($seat['state'] === 'available' || $seat['state'] === 'female_only') {
+                // Only fully open seats: several callers hold with a male
+                // passenger, which the hold correctly rejects on a
+                // female_only seat — that made these tests flaky.
+                if ($seat['state'] === 'available') {
                     $open[] = $seat;
                 }
                 if (count($open) >= $count) {
@@ -158,9 +161,9 @@ class BusBookingFlowTest extends TestCase
 
         $grossAmount = $booking->gross_amount;
 
-        $confirmResponse = $this->postJson("/api/bus/bookings/{$bookingId}/confirm");
+        $confirmResponse = $this->confirmViaWallet("/api/bus/bookings/{$bookingId}/confirm", $bookingId);
 
-        $confirmResponse->assertOk()->assertJsonPath('status', Booking::STATUS_TICKETED);
+        $confirmResponse->assertOk()->assertJsonPath('data.status', Booking::STATUS_TICKETED);
 
         $booking->refresh();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->status);
@@ -266,7 +269,7 @@ class BusBookingFlowTest extends TestCase
             ['name' => 'Broke Traveller', 'seat_number' => $seatNumber, 'gender' => 'male', 'title' => 'Mr', 'age' => 35],
         ])->json('data.id');
 
-        $this->postJson("/api/bus/bookings/{$bookingId}/confirm")->assertStatus(402);
+        $this->confirmViaWallet("/api/bus/bookings/{$bookingId}/confirm", $bookingId)->assertStatus(402);
 
         $booking = Booking::withoutTenantScope()->findOrFail($bookingId);
         $this->assertSame(Booking::STATUS_HELD, $booking->status, 'A failed payment must not advance the booking status.');
@@ -323,7 +326,7 @@ class BusBookingFlowTest extends TestCase
         $this->assertSame(Booking::STATUS_HELD, $booking->status);
         $this->assertSame(1, $item->fresh()->capacity, 'Holding one seat should decrement own-inventory capacity by one.');
 
-        $this->postJson("/api/bus/bookings/{$bookingId}/confirm")->assertOk();
+        $this->confirmViaWallet("/api/bus/bookings/{$bookingId}/confirm", $bookingId)->assertOk();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->fresh()->status);
     }
 }

@@ -45,6 +45,17 @@ return new class extends Migration
         // gateway/method for a payment_transactions row are only known
         // once the customer picks a method at the payment-gateway step,
         // so both must accept NULL between initiate() and settle().
+        if (DB::getDriverName() === 'sqlite') {
+            // SQLite (test suite) has no MODIFY — Laravel 11 rebuilds the
+            // table natively for ->change(), so use that path there.
+            Schema::table('payment_transactions', function (Blueprint $table) {
+                $table->string('gateway', 30)->nullable()->change();
+                $table->string('method', 30)->nullable()->change();
+            });
+
+            return;
+        }
+
         DB::statement('ALTER TABLE payment_transactions MODIFY gateway VARCHAR(30) NULL');
         DB::statement('ALTER TABLE payment_transactions MODIFY method VARCHAR(30) NULL');
     }
@@ -52,6 +63,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('payment_method_routes');
+
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
 
         DB::statement("ALTER TABLE payment_transactions MODIFY gateway ENUM('razorpay','payu','cashfree','ccavenue','stripe') NOT NULL");
         DB::statement("ALTER TABLE payment_transactions MODIFY method ENUM('card','upi','netbanking','wallet') NULL");

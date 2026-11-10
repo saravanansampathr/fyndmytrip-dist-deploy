@@ -40,9 +40,11 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::getDriverName() === 'sqlite') {
-            $this->widenViaCopySqlite('markup_rules', 'module', 20);
-            $this->widenViaCopySqlite('bookings', 'module', 20, reindex: [['tenant_id', 'module', 'created_at']]);
-            $this->widenViaCopySqlite('tenant_feature_flags', 'module_key', 20, uniqueWith: ['tenant_id', 'module_key']);
+            // Laravel 11 rebuilds SQLite tables natively for ->change(),
+            // dropping the enum CHECK constraint and keeping indexes.
+            Schema::table('markup_rules', fn (Blueprint $t) => $t->string('module', 20)->change());
+            Schema::table('bookings', fn (Blueprint $t) => $t->string('module', 20)->change());
+            Schema::table('tenant_feature_flags', fn (Blueprint $t) => $t->string('module_key', 20)->change());
         } else {
             DB::statement('ALTER TABLE markup_rules MODIFY module VARCHAR(20) NOT NULL');
             DB::statement('ALTER TABLE bookings MODIFY module VARCHAR(20) NOT NULL');
@@ -56,47 +58,5 @@ return new class extends Migration
         // reintroduce the bug this migration exists to fix, and nothing
         // downstream depends on these columns being ENUMs rather than
         // VARCHAR(20).
-    }
-
-    /**
-     * @param array<int, string>|null $reindex Composite index column list to drop/recreate, if any.
-     * @param string|null $uniqueWith Second column of a ['tenant_id', $column] unique pair to drop/recreate, if any.
-     */
-    private function widenViaCopySqlite(string $table, string $column, int $length, ?array $reindex = null, ?string $uniqueWith = null): void
-    {
-        $tmp = $column . '_new';
-
-        if ($reindex) {
-            Schema::table($table, function (Blueprint $t) use ($reindex) {
-                $t->dropIndex($reindex);
-            });
-        }
-        if ($uniqueWith) {
-            Schema::table($table, function (Blueprint $t) use ($uniqueWith, $column) {
-                $t->dropUnique(['tenant_id', $column]);
-            });
-        }
-
-        Schema::table($table, function (Blueprint $t) use ($tmp, $length) {
-            $t->string($tmp, $length)->nullable();
-        });
-        DB::statement("UPDATE {$table} SET {$tmp} = {$column}");
-        Schema::table($table, function (Blueprint $t) use ($column) {
-            $t->dropColumn($column);
-        });
-        Schema::table($table, function (Blueprint $t) use ($tmp, $column) {
-            $t->renameColumn($tmp, $column);
-        });
-
-        if ($reindex) {
-            Schema::table($table, function (Blueprint $t) use ($reindex) {
-                $t->index($reindex);
-            });
-        }
-        if ($uniqueWith) {
-            Schema::table($table, function (Blueprint $t) use ($uniqueWith, $column) {
-                $t->unique(['tenant_id', $column]);
-            });
-        }
     }
 };

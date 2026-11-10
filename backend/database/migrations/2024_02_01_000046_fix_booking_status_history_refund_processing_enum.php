@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * A real, pre-existing bug this migration fixes: when
@@ -28,10 +30,14 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::getDriverName() === 'sqlite') {
-            // SQLite has no real ENUM (Laravel renders it as a CHECK
-            // constraint) and this project's sqlite path elsewhere
-            // (2024_02_01_000025) only ever needed to touch bookings.status,
-            // not this table — nothing to migrate here for that driver.
+            // SQLite renders enum() as a CHECK constraint that rejects
+            // 'refund_processing'; Laravel 11 rebuilds the table for
+            // ->change(), which drops that constraint.
+            Schema::table('booking_status_history', function (Blueprint $table) {
+                $table->string('from_status', 20)->nullable()->change();
+                $table->string('to_status', 20)->change();
+            });
+
             return;
         }
 

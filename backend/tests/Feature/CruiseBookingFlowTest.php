@@ -104,9 +104,9 @@ class CruiseBookingFlowTest extends TestCase
 
         $grossAmount = $booking->gross_amount;
 
-        $confirmResponse = $this->postJson("/api/cruises/bookings/{$bookingId}/confirm");
+        $confirmResponse = $this->confirmViaWallet("/api/cruises/bookings/{$bookingId}/confirm", $bookingId);
 
-        $confirmResponse->assertOk()->assertJsonPath('status', Booking::STATUS_TICKETED);
+        $confirmResponse->assertOk()->assertJsonPath('data.status', Booking::STATUS_TICKETED);
 
         $booking->refresh();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->status);
@@ -142,7 +142,7 @@ class CruiseBookingFlowTest extends TestCase
             'passengers' => [['name' => 'Broke Traveller']],
         ])->json('data.id');
 
-        $this->postJson("/api/cruises/bookings/{$bookingId}/confirm")->assertStatus(402);
+        $this->confirmViaWallet("/api/cruises/bookings/{$bookingId}/confirm", $bookingId)->assertStatus(402);
 
         $booking = Booking::withoutTenantScope()->findOrFail($bookingId);
         $this->assertSame(Booking::STATUS_HELD, $booking->status, 'A failed payment must not advance the booking status.');
@@ -198,7 +198,7 @@ class CruiseBookingFlowTest extends TestCase
         $this->assertSame(Booking::STATUS_HELD, $booking->status);
         $this->assertSame(1, $item->fresh()->capacity, 'Holding one cabin should decrement own-inventory capacity by one.');
 
-        $this->postJson("/api/cruises/bookings/{$bookingId}/confirm")->assertOk();
+        $this->confirmViaWallet("/api/cruises/bookings/{$bookingId}/confirm", $bookingId)->assertOk();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->fresh()->status);
     }
 }

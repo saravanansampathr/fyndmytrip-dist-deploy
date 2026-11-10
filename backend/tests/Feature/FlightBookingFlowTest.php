@@ -56,20 +56,25 @@ class FlightBookingFlowTest extends TestCase
         ]);
 
         $searchResponse->assertOk();
-        $offers = $searchResponse->json('data');
+        $offers = $searchResponse->json('data.legs.0.offers');
         $this->assertNotEmpty($offers, 'Mock supplier should return at least one flight offer.');
 
         $offer = $offers[0];
         $this->assertArrayHasKey('gross_amount', $offer);
-        $this->assertArrayHasKey('markup_amount', $offer);
+        // Supplier cost / margin is withheld from callers without
+        // pricing.view_margin (customers, agents) — only the sell price goes out.
+        $this->assertArrayNotHasKey('markup_amount', $offer);
+        $this->assertArrayNotHasKey('net_amount', $offer);
 
         $holdResponse = $this->postJson('/api/flights/bookings', [
-            'supplier_code' => $offer['supplier_code'],
-            'external_id' => $offer['external_id'],
+            'legs' => [[
+                'supplier_code' => $offer['supplier_code'],
+                'external_id' => $offer['external_id'],
+                'segments' => $offer['segments'],
+            ]],
             'travel_date' => $departureDate,
-            'segments' => $offer['segments'],
             'passengers' => [
-                ['name' => 'Jane Traveller', 'gender' => 'female'],
+                ['first_name' => 'Jane', 'last_name' => 'Traveller', 'gender' => 'female'],
             ],
         ]);
 
@@ -82,9 +87,9 @@ class FlightBookingFlowTest extends TestCase
 
         $grossAmount = $booking->gross_amount;
 
-        $confirmResponse = $this->postJson("/api/flights/bookings/{$bookingId}/confirm");
+        $confirmResponse = $this->confirmViaWallet("/api/flights/bookings/{$bookingId}/confirm", $bookingId);
 
-        $confirmResponse->assertOk()->assertJsonPath('status', Booking::STATUS_TICKETED);
+        $confirmResponse->assertOk()->assertJsonPath('data.status', Booking::STATUS_TICKETED);
 
         $booking->refresh();
         $this->assertSame(Booking::STATUS_TICKETED, $booking->status);
@@ -124,17 +129,19 @@ class FlightBookingFlowTest extends TestCase
             'origin' => 'DEL',
             'destination' => 'BOM',
             'departure_date' => $departureDate,
-        ])->json('data.0');
+        ])->json('data.legs.0.offers.0');
 
         $bookingId = $this->postJson('/api/flights/bookings', [
-            'supplier_code' => $offer['supplier_code'],
-            'external_id' => $offer['external_id'],
+            'legs' => [[
+                'supplier_code' => $offer['supplier_code'],
+                'external_id' => $offer['external_id'],
+                'segments' => $offer['segments'],
+            ]],
             'travel_date' => $departureDate,
-            'segments' => $offer['segments'],
-            'passengers' => [['name' => 'Broke Traveller']],
+            'passengers' => [['first_name' => 'Broke', 'last_name' => 'Traveller']],
         ])->json('data.id');
 
-        $this->postJson("/api/flights/bookings/{$bookingId}/confirm")->assertStatus(402);
+        $this->confirmViaWallet("/api/flights/bookings/{$bookingId}/confirm", $bookingId)->assertStatus(402);
 
         $booking = Booking::withoutTenantScope()->findOrFail($bookingId);
         $this->assertSame(Booking::STATUS_HELD, $booking->status, 'A failed payment must not advance the booking status.');

@@ -108,11 +108,42 @@ class TenantService
      */
     public function getAncestorIds(Tenant $tenant): array
     {
-        return TenantHierarchyClosure::query()
+        $ids = TenantHierarchyClosure::query()
             ->where('descendant_tenant_id', $tenant->id)
             ->orderBy('depth')
             ->pluck('ancestor_tenant_id')
             ->all();
+
+        // Same closure-table gap getDescendantIdsRobust() guards against: a
+        // tenant seeded directly (the Master, typically) has no closure rows,
+        // so its descendants' closure chains stop short of it — and Master's
+        // markup ceilings / platform-wide rules were silently skipped. The
+        // parent_tenant_id chain is authoritative, so walk it and append any
+        // ancestor the closure table missed, keeping near->far order.
+        $walked = [];
+        $current = $tenant;
+        $guard = 0;
+
+        while ($current && $guard++ < 50) {
+            $walked[] = (int) $current->id;
+            $current = $current->parent_tenant_id
+                ? Tenant::query()->withoutGlobalScopes()->find($current->parent_tenant_id)
+                : null;
+        }
+
+        if ($ids === []) {
+            return $walked;
+        }
+
+        $ids = array_map('intval', $ids);
+
+        foreach ($walked as $id) {
+            if (! in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 
     /**

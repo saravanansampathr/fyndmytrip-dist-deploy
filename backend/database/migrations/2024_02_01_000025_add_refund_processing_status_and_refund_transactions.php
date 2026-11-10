@@ -29,15 +29,11 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::getDriverName() === 'sqlite') {
+            // Laravel 11 rebuilds the SQLite table for ->change(), keeping
+            // the (tenant_id, status, created_at) index intact — a manual
+            // drop/rename of `status` fails because that index references it.
             Schema::table('bookings', function (Blueprint $table) {
-                $table->string('status_new', 20)->default('cart')->after('status');
-            });
-            DB::statement('UPDATE bookings SET status_new = status');
-            Schema::table('bookings', function (Blueprint $table) {
-                $table->dropColumn('status');
-            });
-            Schema::table('bookings', function (Blueprint $table) {
-                $table->renameColumn('status_new', 'status');
+                $table->string('status', 20)->default('cart')->change();
             });
         } else {
             DB::statement("ALTER TABLE bookings MODIFY status VARCHAR(20) NOT NULL DEFAULT 'cart'");

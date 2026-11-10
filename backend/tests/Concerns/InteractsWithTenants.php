@@ -52,4 +52,17 @@ trait InteractsWithTenants
             'owner_id' => $user->id,
         ]);
     }
+
+    /**
+     * Confirm a held booking paying the full payable amount from the
+     * caller's wallet. confirm() now takes an explicit `wallet_amount`
+     * (anything left over goes to the payment gateway), so a bare POST
+     * would hand off to the gateway instead of debiting the wallet.
+     */
+    protected function confirmViaWallet(string $url, int|string $bookingId): \Illuminate\Testing\TestResponse
+    {
+        $booking = \App\Domains\Booking\Models\Booking::withoutTenantScope()->findOrFail($bookingId);
+
+        return $this->postJson($url, ['wallet_amount' => $booking->recalculateTotal()]);
+    }
 }

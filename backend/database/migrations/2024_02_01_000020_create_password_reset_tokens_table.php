@@ -19,6 +19,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // 2024_01_01_000003 creates Laravel's stock (email-only PK) table,
+        // which nothing uses. Replace it with the tenant-scoped shape;
+        // without this drop a fresh `migrate` fails with "table exists".
+        Schema::dropIfExists('password_reset_tokens');
+
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->unsignedBigInteger('tenant_id');
             $table->string('email');
