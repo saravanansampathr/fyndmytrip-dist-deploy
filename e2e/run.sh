@@ -2,6 +2,7 @@
 # Full end-to-end run on a throwaway SQLite database:
 #   1. backend unit/feature tests   2. API run (every user type × service)
 #   3. browser run against frontend/ (needs Node + Playwright with Chromium)
+#   4. website bookings: every service and user type from search to payment
 # Usage: e2e/run.sh            (from the repo root, after `composer install` in backend/)
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -25,3 +26,4 @@ sleep 3
 
 echo "== API end-to-end"; CACHE_STORE=file python3 "$ROOT/e2e/api_e2e.py"
 echo "== browser end-to-end"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/ui_e2e.js"
+echo "== website bookings (every service and role, search to payment)"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/ui_booking_e2e.js"
