@@ -58,7 +58,8 @@ const bodyText = page => page.locator('body').innerText();
 // Review & pay → wallet (or wallet+gateway when gateway=true) → confirmation.
 async function payAndConfirm(page, { gateway = false, partial = null } = {}) {
   if (partial !== null) await page.locator('input[type=number]').first().fill(String(partial));
-  if (gateway && partial === null) await page.locator('input[type=checkbox]').first().uncheck();
+  const guestWallet = await page.locator('[data-testid=wallet-login]').count();
+  if (gateway && partial === null && !guestWallet) await page.locator('input[type=checkbox]').first().uncheck();
   await page.waitForTimeout(300);
   await click(page, /^(Pay|Proceed to payment gateway)/);
   if (await page.getByText('Choose a payment method').count()) {
@@ -91,6 +92,11 @@ const flows = {
       const m = (await bodyText(page)).match(/Coupon \(FLYFIRST10\)\s*\n\s*-₹([\d,.]+)/); discount = m ? money(m[1]) : NaN;
       check(`${o.label} coupon FLYFIRST10 gives a discount`, discount > 0, discount);
     }
+    if (o.guest) {
+      // Guests get a sign-in prompt instead of wallet controls.
+      const t = await bodyText(page);
+      check(`${o.label}: guest sees "Log in to use your wallet balance", not the wallet`, /Log in to use your wallet balance/.test(t) && !/Use my wallet balance/.test(t), t.slice(0, 200));
+    } else check(`${o.label}: signed-in customer sees the wallet option`, /Use my wallet balance/.test(await bodyText(page)));
     const r = await payAndConfirm(page, o);
     const offer = st.offers[st.holds.at(-1)?.legs?.[0]?.external_id];
     return { ...r, expected: offer ? parseFloat(offer.gross_amount) + extras - discount : NaN };

@@ -375,6 +375,7 @@ input:focus,select:focus{outline:2px solid var(--primary);outline-offset:1px}
 .pay-dark .muted{color:inherit;opacity:.8}
 .pm-acc .btn{margin-top:4px}
 .secure{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.wallet-login{display:flex;gap:8px;align-items:center;font-size:14px;padding:10px 12px;border-radius:var(--radius,8px);background:color-mix(in srgb,var(--primary,#0b6) 8%,transparent);margin:10px 0}.wallet-login .link{font-weight:600;text-decoration:underline}
 @media (max-width:860px){.pay,.pay-split{grid-template-columns:1fr}.pay-dark{position:static}}
 
 /* ---------------- confirmation, login, gallery ---------------- */

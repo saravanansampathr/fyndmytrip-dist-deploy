@@ -114,6 +114,8 @@ async function apiGet(p, token) {
       {
         await page.waitForSelector('.pay', { timeout: 20000 });
         await shot('payment');
+        const walletLogin = await page.locator('[data-wallet-login]').count();
+        check(`${tag}: ${asGuest ? 'guest sees "Sign in to use your wallet balance"' : 'signed-in customer gets no sign-in prompt'}`, asGuest ? walletLogin === 1 : walletLogin === 0, walletLogin);
         // wallet is only offered when it covers the booking and the trip is domestic
         const walletShown = await page.locator('[data-pm=fmt_wallet], input[value=fmt_wallet], option[value=fmt_wallet]').count();
         const m = method === 'fmt_wallet' && !walletShown ? 'upi' : method;

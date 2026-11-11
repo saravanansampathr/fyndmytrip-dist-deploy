@@ -349,7 +349,9 @@ export async function payment(root, ctx) {
   const sum = `<div class="pay-sum"><h3>Booking summary</h3><p><b>${esc(offer ? svc.title(offer) : svc.label)}</b></p><dl><dt>Booking ID</dt><dd>${esc(booking.booking_code || booking.booking_reference)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(booking.travel_date_start || ''))}</dd><dt>Travellers</dt><dd>${booking.passenger_count}</dd><dt>Base fare</dt><dd>${money(booking.gross_amount, booking.currency)}</dd>${Number(booking.extras_amount) ? `<dt>Extras</dt><dd>${money(booking.extras_amount)}</dd>` : ''}${Number(booking.discount_amount) ? `<dt>Discount</dt><dd>−${money(booking.discount_amount)}</dd>` : ''}<dt class="tot">Total payable</dt><dd class="tot">${money(total, booking.currency)}</dd></dl>${wallet ? `<p class="muted small">Wallet balance: ${money(bal)}</p>` : ''}</div>`;
   const opt = (m, type) => { const [l, ic, d] = METHODS[m]; return type === 'radio' ? `<label class="pm"><input type="radio" name="pm" value="${m}">${icon(ic, 22)}<span><b>${l}</b><small>${d}</small></span></label>` : `<button type="button" class="pm" data-pm="${m}">${icon(ic, type === 'tile' ? 30 : 20)}<b>${l}</b><small>${d}</small></button>`; };
   const payBtn = `<button class="btn btn-primary btn-lg btn-pay" data-pay disabled>${icon('lock', 18)} Pay ${money(total, booking.currency)}</button>`;
-  const secure = `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>` + (charging() !== fx.base ? `<p class="muted small" data-charge-note>Your card is charged <b>${money(total, booking.currency)}</b> (${inr(total)}) in ${charging()} at today's rate.</p>` : '');
+  // Guests have no wallet: offer sign-in instead (a new hold is made under the account).
+  const walletLogin = auth.member ? '' : `<p class="wallet-login">${icon('wallet', 18)} <span>Have an account? <button type="button" class="link" data-wallet-login>Sign in to use your wallet balance</button></span></p>`;
+  const secure = walletLogin + `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>` + (charging() !== fx.base ? `<p class="muted small" data-charge-note>Your card is charged <b>${money(total, booking.currency)}</b> (${inr(total)}) in ${charging()} at today's rate.</p>` : '');
   const v = ctx.t.layout.payment;
   let html;
   switch (v) {
@@ -368,6 +370,7 @@ export async function payment(root, ctx) {
   root.querySelectorAll('input[name=pm]').forEach((r) => r.addEventListener('change', () => choose(r.value)));
   root.querySelector('[data-pm-select]')?.addEventListener('change', (e) => choose(e.target.value));
   payBtnEl?.addEventListener('click', () => pay(payBtnEl));
+  root.querySelector('[data-wallet-login]')?.addEventListener('click', () => { toast('Sign in below, then continue to pay with your wallet.'); go(`#/travellers/${ctx.svc}`); });
   async function pay(btn) {
     if (!chosen) return;
     busy(btn, true, 'Processing payment…');
