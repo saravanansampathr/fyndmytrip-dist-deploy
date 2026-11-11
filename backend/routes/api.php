@@ -226,6 +226,14 @@ Route::middleware('tenant')->group(function () {
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Business reports (CSV with ?format=csv).
+        Route::get('/business-reports/profit', [\App\Http\Controllers\Api\BusinessReportsController::class, 'profit']);
+        Route::get('/business-reports/sales', [\App\Http\Controllers\Api\BusinessReportsController::class, 'sales']);
+        Route::get('/business-reports/cancellations', [\App\Http\Controllers\Api\BusinessReportsController::class, 'cancellations']);
+        Route::get('/business-reports/funnel', [\App\Http\Controllers\Api\BusinessReportsController::class, 'funnel']);
+        Route::get('/business-reports/gstr1', [\App\Http\Controllers\Api\BusinessReportsController::class, 'gstr1']);
+        Route::get('/business-reports/tcs', [\App\Http\Controllers\Api\BusinessReportsController::class, 'tcs']);
+        Route::get('/business-reports/tds', [\App\Http\Controllers\Api\BusinessReportsController::class, 'tds']);
 
         Route::apiResource('tenants', TenantController::class)->only(['index', 'show', 'store']);
         Route::get('/tenants/{tenant}/users', [TenantUserController::class, 'index']);

@@ -50,6 +50,8 @@ class CommissionRule extends Model
     public const BOOKING_SCOPES = [self::SCOPE_DOMESTIC, self::SCOPE_INTERNATIONAL, self::SCOPE_BOTH];
 
     protected $fillable = [
+        'valid_from',
+        'valid_until',
         'tenant_id',
         'name',
         'module',
@@ -63,6 +65,8 @@ class CommissionRule extends Model
 
     protected $casts = [
         'config' => 'array',
+        'valid_from' => 'datetime',
+        'valid_until' => 'datetime',
         'max_commission_amount' => 'decimal:2',
         'is_active' => 'boolean',
     ];

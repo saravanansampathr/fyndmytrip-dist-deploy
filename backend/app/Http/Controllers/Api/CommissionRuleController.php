@@ -93,6 +93,8 @@ class CommissionRuleController extends Controller
             'max_commission_amount' => ['nullable', 'numeric', 'min:0'],
             'booking_scope' => ['nullable', 'in:'.implode(',', CommissionRule::BOOKING_SCOPES)],
             'is_active' => ['nullable', 'boolean'],
+            'valid_from' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
         ]);
 
         $config = $data['rule_type'] === CommissionRule::TYPE_PERCENTAGE
@@ -109,6 +111,8 @@ class CommissionRuleController extends Controller
             'name' => $data['name'] ?? null,
             'booking_scope' => $data['booking_scope'] ?? CommissionRule::SCOPE_BOTH,
             'is_active' => $data['is_active'] ?? true,
+            'valid_from' => $data['valid_from'] ?? null,
+            'valid_until' => isset($data['valid_until']) ? (strlen($data['valid_until']) <= 10 ? \Carbon\Carbon::parse($data['valid_until'])->endOfDay() : $data['valid_until']) : null,
         ];
 
         // Non-platform-staff can only ever manage their own tenant's rules

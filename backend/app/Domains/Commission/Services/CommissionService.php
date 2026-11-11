@@ -74,7 +74,10 @@ class CommissionService
             return null;
         }
 
-        return DB::transaction(function () use ($rule, $booking, $tenant, $amount) {
+        $tds = $this->tdsFor($tenant, $amount);
+        $net = (string) BigDecimal::of($amount)->minus($tds['amount'])->toScale(2, RoundingMode::HALF_UP);
+
+        return DB::transaction(function () use ($rule, $booking, $tenant, $amount, $tds, $net) {
             $wallet = Wallet::query()->firstOrCreate([
                 'tenant_id' => $tenant->id,
                 'owner_type' => Wallet::OWNER_TENANT,
@@ -83,10 +86,11 @@ class CommissionService
 
             $entry = $this->walletService->credit(
                 $wallet,
-                $amount,
+                $net,
                 WalletLedgerEntry::REF_COMMISSION_PAYOUT,
                 $booking->id,
-                "Commission for booking {$booking->booking_reference} ({$rule->name})",
+                "Commission for booking {$booking->booking_reference} ({$rule->name})"
+                    .($tds['amount'] !== '0.00' ? " less TDS {$tds['amount']} @ {$tds['rate']}%" : ''),
                 null,
             );
 
@@ -94,7 +98,12 @@ class CommissionService
                 'booking_id' => $booking->id,
                 'commission_rule_id' => $rule->id,
                 'wallet_ledger_entry_id' => $entry->id,
-                'amount' => $amount,
+                'amount' => $net,
+                'gross_amount' => $amount,
+                'tds_amount' => $tds['amount'],
+                'tds_rate' => $tds['rate'],
+                'pan' => $tds['pan'],
+                'financial_year' => \App\Domains\Settings\Services\TaxService::financialYear(now()),
             ]);
 
             // Kept in sync so Reports (which already sums Booking::commission_amount)
@@ -112,6 +121,41 @@ class CommissionService
      * domestic/international scope. Self is excluded — a tenant doesn't
      * grant itself commission.
      */
+    /**
+     * TDS on this commission (s.194H): nothing until the agent's commission
+     * for the financial year passes the threshold; when it does, TDS is
+     * also taken on the earlier commission of that year not yet taxed.
+     *
+     * @return array{amount: string, rate: ?string, pan: ?string}
+     */
+    public function tdsFor(Tenant $tenant, string $amount): array
+    {
+        $cfg = (array) app(\App\Domains\Settings\Services\SettingsService::class)->value('tax', 'tds', []);
+        $pan = $tenant->pan ? strtoupper($tenant->pan) : null;
+        if (empty($cfg['enabled'])) {
+            return ['amount' => '0.00', 'rate' => null, 'pan' => $pan];
+        }
+        $fy = \App\Domains\Settings\Services\TaxService::financialYear(now());
+        $earlier = CommissionCredit::query()->join('bookings', 'bookings.id', '=', 'commission_credits.booking_id')
+            ->where('bookings.tenant_id', $tenant->id)->where('commission_credits.financial_year', $fy);
+        $yearSoFar = BigDecimal::of((string) ((clone $earlier)->sum(DB::raw('COALESCE(commission_credits.gross_amount, commission_credits.amount)')) ?: 0));
+        $untaxed = BigDecimal::of((string) ((clone $earlier)->where('commission_credits.tds_amount', 0)->sum(DB::raw('COALESCE(commission_credits.gross_amount, commission_credits.amount)')) ?: 0));
+        $threshold = BigDecimal::of((string) ($cfg['threshold'] ?? 0));
+        $after = $yearSoFar->plus($amount);
+        if ($after->isLessThanOrEqualTo($threshold)) {
+            return ['amount' => '0.00', 'rate' => null, 'pan' => $pan];
+        }
+        $base = BigDecimal::of($amount)->plus($yearSoFar->isLessThanOrEqualTo($threshold) ? $untaxed : BigDecimal::zero());
+        $rate = (string) ($pan ? ($cfg['rate'] ?? 2) : ($cfg['rate_no_pan'] ?? 20));
+        $tds = $base->multipliedBy($rate)->dividedBy(100, 2, RoundingMode::HALF_UP);
+        // Never take more than this commission itself.
+        if ($tds->isGreaterThan($amount)) {
+            $tds = BigDecimal::of($amount);
+        }
+
+        return ['amount' => (string) $tds->toScale(2), 'rate' => $rate, 'pan' => $pan];
+    }
+
     public function bestRuleFor(Booking $booking, Tenant $tenant): ?CommissionRule
     {
         $ancestorIds = $this->tenantService->getAncestorIds($tenant);
@@ -127,6 +171,8 @@ class CommissionService
             ->whereIn('tenant_id', $ancestorIds)
             ->where('applies_to_type', $tenant->type)
             ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', now()))
             ->where(fn ($q) => $q->whereNull('module')->orWhere('module', $booking->module))
             ->get()
             ->filter(function (CommissionRule $r) use ($isInternational) {

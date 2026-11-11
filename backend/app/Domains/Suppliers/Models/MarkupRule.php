@@ -110,11 +110,15 @@ class MarkupRule extends Model
         'booking_scope',
         'supplier_code',
         'is_active',
+        'valid_from',
+        'valid_until',
     ];
 
     protected $casts = [
         'config' => 'array',
         'is_active' => 'boolean',
+        'valid_from' => 'datetime',
+        'valid_until' => 'datetime',
     ];
 
     protected static function booted(): void

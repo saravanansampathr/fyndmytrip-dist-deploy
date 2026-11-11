@@ -69,6 +69,11 @@ class AdminSettingsController extends Controller
                 'tcs.rate_below' => ['sometimes', 'numeric', 'min:0', 'max:50'],
                 'tcs.rate_above' => ['sometimes', 'numeric', 'min:0', 'max:50'],
                 'tcs.require_pan' => ['sometimes', 'boolean'],
+                'tds' => ['sometimes', 'array'],
+                'tds.enabled' => ['sometimes', 'boolean'],
+                'tds.rate' => ['sometimes', 'numeric', 'min:0', 'max:30'],
+                'tds.rate_no_pan' => ['sometimes', 'numeric', 'min:0', 'max:30'],
+                'tds.threshold' => ['sometimes', 'numeric', 'min:0'],
             ],
             'security' => [
                 'login_max_attempts' => ['sometimes', 'integer', 'min:3', 'max:20'],

@@ -29,6 +29,7 @@ class TenantResource extends JsonResource
             'support_phone' => $this->support_phone,
             'business_address' => $this->business_address,
             'business_registration_no' => $this->business_registration_no,
+            'pan' => $this->pan,
             'dns_status' => $this->dns_status,
             'dns_verified_at' => $this->dns_verified_at,
             'enabled_modules' => $this->enabled_modules,

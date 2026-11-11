@@ -307,6 +307,8 @@ class MarkupRuleController extends Controller
             'booking_scope' => ['nullable', 'in:'.implode(',', MarkupRule::BOOKING_SCOPES)],
             'supplier_code' => ['nullable', 'string', 'max:40'],
             'is_active' => ['nullable', 'boolean'],
+            'valid_from' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
         ]);
 
         $config = $data['rule_type'] === MarkupRule::TYPE_PERCENTAGE
@@ -328,6 +330,9 @@ class MarkupRuleController extends Controller
             'supplier_code' => isset($data['supplier_code']) && trim($data['supplier_code']) !== ''
                 ? strtoupper(trim($data['supplier_code'])) : null,
             'is_active' => $data['is_active'] ?? true,
+            'valid_from' => $data['valid_from'] ?? null,
+            // An end date without a time means "to the end of that day".
+            'valid_until' => isset($data['valid_until']) ? (strlen($data['valid_until']) <= 10 ? \Carbon\Carbon::parse($data['valid_until'])->endOfDay() : $data['valid_until']) : null,
             'user_id' => $data['user_id'] ?? null,
             'target_tenant_id' => $data['target_tenant_id'] ?? null,
         ];

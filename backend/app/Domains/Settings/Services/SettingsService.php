@@ -41,6 +41,17 @@ class SettingsService
                 'credit_note_prefix' => 'FCN',
                 // Tax collected at source on overseas tour packages
                 // (Income Tax Act s.206C(1G)). Off until the CA confirms.
+                // TDS deducted from commission paid to agents
+                // (Income Tax Act s.194H). Off until the CA confirms.
+                'tds' => [
+                    'enabled' => false,
+                    'rate' => 2,
+                    // Without a PAN on the agent's account (s.206AA).
+                    'rate_no_pan' => 20,
+                    // Commission per agent per financial year below which
+                    // nothing is deducted.
+                    'threshold' => 20000,
+                ],
                 'tcs' => [
                     'enabled' => false,
                     'threshold' => 1000000,

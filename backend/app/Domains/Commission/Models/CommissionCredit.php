@@ -20,6 +20,18 @@ class CommissionCredit extends Model
         'commission_rule_id',
         'wallet_ledger_entry_id',
         'amount',
+        'gross_amount',
+        'tds_amount',
+        'tds_rate',
+        'pan',
+        'financial_year',
+    ];
+
+    protected $casts = [
+        'amount' => 'decimal:2',
+        'gross_amount' => 'decimal:2',
+        'tds_amount' => 'decimal:2',
+        'tds_rate' => 'decimal:2',
     ];
 
     protected static function booted(): void

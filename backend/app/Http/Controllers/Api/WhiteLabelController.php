@@ -158,6 +158,7 @@ class WhiteLabelController extends Controller
             'support_phone' => ['nullable', 'string', 'max:30'],
             'business_address' => ['nullable', 'string', 'max:2000'],
             'business_registration_no' => ['nullable', 'string', 'max:100'],
+            'pan' => ['nullable', 'string', 'regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/'],
             'enabled_modules' => ['nullable', 'array'],
             'enabled_modules.*' => ['in:'.implode(',', Tenant::ALL_MODULES)],
             'social_links' => ['nullable', 'array'],
