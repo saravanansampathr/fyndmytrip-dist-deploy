@@ -250,7 +250,7 @@
             @foreach($priceRows as $row)
                 <tr>
                     <td>{{ $row['label'] }}</td>
-                    <td class="amount">{{ $booking->currency }} {{ number_format($row['amount'], 2) }}</td>
+                    <td class="amount">{{ $row['amount'] < 0 ? '−' : '' }}{{ $booking->currency }} {{ number_format(abs($row['amount']), 2) }}</td>
                 </tr>
             @endforeach
             <tr class="total">

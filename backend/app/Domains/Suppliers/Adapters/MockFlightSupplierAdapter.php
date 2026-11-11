@@ -173,6 +173,7 @@ class MockFlightSupplierAdapter implements SupplierAdapterInterface
             confirmedNetAmount: $netAmount,
             isRefundable: $seed % 3 !== 0,
             rules: ['cancellation_fee' => '₹500 up to 24h before departure, thereafter non-refundable.'],
+            taxBreakup: self::mockTaxes((float) $netAmount),
         );
     }
 
@@ -297,5 +298,25 @@ class MockFlightSupplierAdapter implements SupplierAdapterInterface
         }
 
         return $results;
+    }
+
+    /**
+     * A believable airline tax split of a mock fare: base ~82%, airline GST
+     * (K3) 5% of base, fuel surcharge (YQ), and the rest airport/other taxes.
+     *
+     * @return array<string, string>
+     */
+    public static function mockTaxes(float $net): array
+    {
+        $base = round($net * 0.82, 2);
+        $k3 = round($base * 0.05, 2);
+        $yq = round($net * 0.06, 2);
+        $other = round($net - $base - $k3 - $yq, 2);
+
+        return [
+            'K3' => number_format($k3, 2, '.', ''),
+            'YQ' => number_format($yq, 2, '.', ''),
+            'OT' => number_format($other, 2, '.', ''),
+        ];
     }
 }

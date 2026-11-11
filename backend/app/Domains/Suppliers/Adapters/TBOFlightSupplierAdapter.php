@@ -128,6 +128,7 @@ class TBOFlightSupplierAdapter implements SupplierAdapterInterface
             confirmedNetAmount: number_format((float) ($fare['OfferedFare'] ?? $fare['PublishedFare'] ?? 0), 2, '.', ''),
             isRefundable: (bool) ($result['IsRefundable'] ?? false),
             rules: $result['FareRules'] ?? [],
+            taxBreakup: $this->taxBreakup($fare),
         );
     }
 
@@ -372,5 +373,28 @@ class TBOFlightSupplierAdapter implements SupplierAdapterInterface
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * TBO's Fare.TaxBreakup ([{key: 'K3', value: 256}, ...], 'TotalTax'
+     * left out), falling back to Fare.Tax as one line.
+     *
+     * @return array<string, string>
+     */
+    protected function taxBreakup(array $fare): array
+    {
+        $out = [];
+        foreach ($fare['TaxBreakup'] ?? [] as $row) {
+            $key = strtoupper((string) ($row['key'] ?? ''));
+            if ($key === '' || $key === 'TOTALTAX' || (float) ($row['value'] ?? 0) == 0.0) {
+                continue;
+            }
+            $out[$key] = number_format((float) $row['value'], 2, '.', '');
+        }
+        if ($out === [] && (float) ($fare['Tax'] ?? 0) > 0) {
+            $out['OT'] = number_format((float) $fare['Tax'], 2, '.', '');
+        }
+
+        return $out;
     }
 }

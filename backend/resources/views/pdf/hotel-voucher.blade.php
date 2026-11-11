@@ -222,7 +222,7 @@
             <tr>
                 <td>Booking date</td>
                 <td>{{ optional($booking->travel_date_start)?->subDay()->format('d-m-Y') }}</td>
-                <td>Non-refundable service fee only</td>
+                <td>As per hotel cancellation policy</td>
             </tr>
             <tr>
                 <td>{{ optional($booking->travel_date_start)?->subDay()->format('d-m-Y') }}</td>
@@ -232,22 +232,18 @@
         </tbody>
     </table>
     <p style="font-size: 8.5px; color: #94a3b8; margin-top: 4px;">
-        *No-show or early check-out will attract full cancellation charges unless otherwise specified. Taxes and fees already collected are non-refundable.
+        *No-show or early check-out will attract full cancellation charges unless otherwise specified. Any amount already retained under the cancellation policy is non-refundable.
     </p>
 
     <h2 class="section">Price Information</h2>
     <div class="fare-box">
         <table>
-            <tr>
-                <td>Base Fare</td>
-                <td class="amount">{{ $booking->currency }} {{ number_format($baseFare, 2) }}</td>
-            </tr>
-            @if($taxesAndFees > 0)
+            @foreach($priceRows as $row)
                 <tr>
-                    <td>Taxes and fees</td>
-                    <td class="amount">{{ $booking->currency }} {{ number_format($taxesAndFees, 2) }}</td>
+                    <td>{{ $row['label'] }}</td>
+                    <td class="amount">{{ $row['amount'] < 0 ? '−' : '' }}{{ $booking->currency }} {{ number_format(abs($row['amount']), 2) }}</td>
                 </tr>
-            @endif
+            @endforeach
             <tr class="total">
                 <td>Total Amount Payable</td>
                 <td class="amount">{{ $booking->currency }} {{ number_format($total, 2) }}</td>
