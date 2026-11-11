@@ -245,6 +245,14 @@ Route::middleware('tenant')->group(function () {
         Route::delete('/fare-alerts/{id}', [\App\Http\Controllers\Api\FareAlertController::class, 'destroy'])->whereNumber('id');
         Route::get('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'show']);
         Route::put('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'update']);
+        // Corporate travel.
+        Route::get('/corporate/companies/{tenant}', [\App\Http\Controllers\Api\CorporateController::class, 'settings']);
+        Route::put('/corporate/companies/{tenant}', [\App\Http\Controllers\Api\CorporateController::class, 'updateSettings']);
+        Route::get('/corporate/companies/{tenant}/statement', [\App\Http\Controllers\Api\CorporateController::class, 'statement']);
+        Route::get('/corporate/trip-requests', [\App\Http\Controllers\Api\CorporateController::class, 'index']);
+        Route::post('/corporate/trip-requests', [\App\Http\Controllers\Api\CorporateController::class, 'store'])->middleware('throttle:30,1');
+        Route::post('/corporate/trip-requests/{tripRequest}/{decision}', [\App\Http\Controllers\Api\CorporateController::class, 'decide'])->whereIn('decision', ['approve', 'reject']);
+        Route::post('/corporate/trip-requests/{tripRequest}/link', [\App\Http\Controllers\Api\CorporateController::class, 'link']);
         // Fraud checks and offline / imported bookings.
         Route::get('/admin/fraud-flags', [\App\Http\Controllers\Api\FraudController::class, 'index']);
         Route::put('/admin/fraud-flags/{flag}', [\App\Http\Controllers\Api\FraudController::class, 'update']);
