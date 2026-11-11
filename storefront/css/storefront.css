@@ -414,3 +414,4 @@ input:focus,select:focus{outline:2px solid var(--primary);outline-offset:1px}
 .ftr-centered nav{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin:12px 0}
 .ftr-centered .logo-name{font:700 22px var(--font-head)}
 @media (max-width:700px){.ftr-cols,.ftr-band .ftr-cols{grid-template-columns:1fr 1fr}}
+.cur-select{font:inherit;font-size:13px;font-weight:600;padding:4px 6px;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;opacity:.85;cursor:pointer}.cur-select option{color:#111}

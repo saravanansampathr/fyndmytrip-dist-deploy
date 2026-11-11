@@ -3,8 +3,9 @@
 // storefront needs only an SPA fallback (or none) on the host.
 import { SERVICES, ORDER, defaults } from './services.js';
 import { api, auth, store } from './api.js';
-import { esc, icon, money, fmtDate, toast } from './ui.js';
+import { esc, icon, money, fmtDate, toast, fx, charging, inr } from './ui.js';
 import { searchForm, readForm } from './chrome.js';
+import { gatewayCheckout } from './checkout.js';
 import { TEMPLATES, AXES } from './templates.js';
 
 export const go = (hash) => { location.hash = hash; };
@@ -347,7 +348,7 @@ export async function payment(root, ctx) {
   const sum = `<div class="pay-sum"><h3>Booking summary</h3><p><b>${esc(offer ? svc.title(offer) : svc.label)}</b></p><dl><dt>Booking ID</dt><dd>${esc(booking.booking_code || booking.booking_reference)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(booking.travel_date_start || ''))}</dd><dt>Travellers</dt><dd>${booking.passenger_count}</dd><dt>Base fare</dt><dd>${money(booking.gross_amount, booking.currency)}</dd>${Number(booking.extras_amount) ? `<dt>Extras</dt><dd>${money(booking.extras_amount)}</dd>` : ''}${Number(booking.discount_amount) ? `<dt>Discount</dt><dd>−${money(booking.discount_amount)}</dd>` : ''}<dt class="tot">Total payable</dt><dd class="tot">${money(total, booking.currency)}</dd></dl>${wallet ? `<p class="muted small">Wallet balance: ${money(bal)}</p>` : ''}</div>`;
   const opt = (m, type) => { const [l, ic, d] = METHODS[m]; return type === 'radio' ? `<label class="pm"><input type="radio" name="pm" value="${m}">${icon(ic, 22)}<span><b>${l}</b><small>${d}</small></span></label>` : `<button type="button" class="pm" data-pm="${m}">${icon(ic, type === 'tile' ? 30 : 20)}<b>${l}</b><small>${d}</small></button>`; };
   const payBtn = `<button class="btn btn-primary btn-lg btn-pay" data-pay disabled>${icon('lock', 18)} Pay ${money(total, booking.currency)}</button>`;
-  const secure = `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>`;
+  const secure = `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>` + (charging() !== fx.base ? `<p class="muted small" data-charge-note>Your card is charged <b>${money(total, booking.currency)}</b> (${inr(total)}) in ${charging()} at today's rate.</p>` : '');
   const v = ctx.t.layout.payment;
   let html;
   switch (v) {
@@ -374,7 +375,7 @@ export async function payment(root, ctx) {
       if (chosen === 'fmt_wallet') r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: total.toFixed(2) });
       else {
         r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: 0 });
-        if (r.requires_payment) r = await api('POST', `${payBase}/${ctx.id}/pay`, { method: chosen });
+        if (r.requires_payment) { const paid = await gatewayCheckout(ctx.id, chosen, charging()); r = await api('POST', `${payBase}/${ctx.id}/pay`, { method: chosen, currency: charging(), ...paid }); }
       }
       store.set('booking', { ...(saved || {}), booking: r.data });
       go(`#/done/${ctx.svc}/${ctx.id}`);

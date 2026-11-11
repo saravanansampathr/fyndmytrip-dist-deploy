@@ -1,7 +1,22 @@
 // Small shared helpers: escaping, money, icons, and applying a template's theme.
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Prices come from the API in INR. When the visitor has picked (or been
+// given, from their country) another currency, amounts are shown converted
+// at the API's rate, and that currency is what the card is charged in.
+export const fx = { base: 'INR', rates: { INR: 1 }, cur: 'INR' };
+const CUR_KEY = 'fyndmytrip_currency'; // shared with the portal on the same domain
+try { fx.cur = localStorage.getItem(CUR_KEY) || 'INR'; } catch { /* storage blocked */ }
+export function setCurrency(c) { fx.cur = c; try { localStorage.setItem(CUR_KEY, c); } catch { /* ignore */ } }
+export const hasStoredCurrency = () => { try { return !!localStorage.getItem(CUR_KEY); } catch { return false; } };
+export const charging = () => fx.cur !== fx.base && fx.rates[fx.cur] ? fx.cur : fx.base;
+const fmt = (n, cur) => {
+  try { return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : 'en', { style: 'currency', currency: cur, maximumFractionDigits: ['INR', 'JPY'].includes(cur) ? 0 : 2 }).format(Number(n) || 0); } catch { return '₹' + Math.round(n); }
+};
+export const inr = (n) => fmt(n, 'INR');
 export const money = (n, cur = 'INR') => {
-  try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(n) || 0); } catch { return '₹' + Math.round(n); }
+  const to = charging();
+  if ((cur || 'INR') === fx.base && to !== fx.base) return fmt((Number(n) || 0) * fx.rates[to], to);
+  return fmt(n, cur || 'INR');
 };
 export const fmtDate = (d) => { try { return new Date(d + (d.length === 10 ? 'T00:00' : '')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return d; } };
 
