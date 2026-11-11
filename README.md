@@ -4,6 +4,7 @@
 |---|---|
 | `backend/` | Laravel 11 API (PHP 8.2+): tenants (Master → White-label → Agent → Sub-agent, API partners), users and roles, flights, hotels, buses, cabs, holidays, cruises, activities, insurance, visa, wallet and credit, payments, coupons, cashback, commission, margin (markup) rules, refunds, reports, invoices. |
 | `frontend/` | Compiled portal + storefront (Vite/React build 106) with logos, favicon, icons, payment badges and airport/country data. Calls `https://api-demo.fyndmytrip.in/api`. |
+| `storefront/` | Customer booking storefront with **54 complete design templates** (source included, no build step): home and search, results, details, traveller details, payment and confirmation for flights, hotels, buses, cabs, holidays, cruises, activities, insurance and visas. |
 | `tools/frontend-margin-patch/` | How the Margin rules page in `frontend/` was produced (the React source is not in this repo, only the build). |
 | `e2e/` | End-to-end checks: backend tests, an API run and a browser run. |
 
@@ -24,6 +25,16 @@ php artisan config:cache && php artisan route:cache
 ```
 
 Frontend: upload the contents of `frontend/` to the web root with an SPA fallback to `index.html` (every unknown path serves `index.html`).
+
+## Storefront and its 54 templates
+
+`storefront/` is a plain HTML/CSS/JS app (ES modules, no build step) for customers. It covers the whole journey for every service: search, results (sort and filters), details (seat map for buses), traveller details with guest checkout or sign-in, payment (UPI, cards, net banking, international card, or the customer's wallet) and the confirmation with ticket/voucher and invoice download.
+
+Each template is a full design: its own colours, fonts, corner and shadow style, and its own layout for every page: header (7 layouts), home/search (10), results (8), details (5), traveller form (5), payment (6) and footer (4). Any two templates differ on at least 4 of those 7 page layouts. See them all at `/#/templates` on the storefront.
+
+- **Which template shows:** the white-label partner's choice in the portal (Storefront settings → template, `template_id`), returned by `GET /api/whitelabel/current`. `?template=N` in the URL previews another one for that browser session.
+- **Deploy:** upload `storefront/` to the partner's web root (or any static host) and set `apiBase` in `storefront/config.js`. Add the storefront's origin to the API's `CORS_ALLOWED_ORIGINS`.
+- **Adding or changing templates:** edit `storefront/js/templates.js`, then run `node tools/storefront/sync-templates.mjs` to regenerate `backend/config/whitelabel_templates.php` so the portal's template picker lists the same set.
 
 ## Paying for packages and visas
 
@@ -78,5 +89,7 @@ Runs the backend test suite, then on a throwaway SQLite database seeded with the
 - **API run:** each of 9 user types (super admin, staff, direct customer, white-label admin, agent, sub-agent, direct agent, API partner, and a staff user created by the white-label admin) searches, holds and pays for a flight, hotel, bus, cab, cruise, activity and insurance booking. The margin charged is checked against the rules. It also covers holiday packages, the white-label storefront, visa, reports, invoices, refunds and permission boundaries.
 - **Browser run:** Playwright drives `frontend/` against the local API. It covers creating, editing, previewing and filtering margin rules, read-only and hidden views per role, and 20 pages × 5 roles with no JS errors.
 - **Website bookings:** in the real website, every service (flights, hotels with 2 rooms, buses with 2 seats, cabs, cruises, activities, insurance, holiday packages, visa) from the search page through results, traveller details, review & pay and the confirmation, as customer, guest and every partner/admin role. It checks the amount paid equals the price the results page quoted, and covers coupons, add-ons, wallet / wallet + gateway / gateway payment, invoices in My Trips and an admin cancel + wallet refund.
+
+- **Storefront run:** for each of the 54 templates, a browser books for real through that template's pages (home search → results → details → travellers → payment → confirmation) and checks the booking is ticketed and shows in the customer's My bookings. Services, payment methods and guest vs signed-in rotate across templates, so every service and every page layout is booked through. It also checks every template at phone width for sideways scrolling.
 
 Results and screenshots go to `e2e/results/`.
