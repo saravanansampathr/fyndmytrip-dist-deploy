@@ -49,7 +49,7 @@ class GstService
     {
         $seller = self::gstin($sellerReg);
         $buyer = self::gstin($buyerReg);
-        $sellerState = $seller ? substr($seller, 0, 2) : null;
+        $sellerState = $seller ? substr($seller, 0, 2) : (string) config('booking.gst_home_state', '33');
         $supplyState = $buyer ? substr($buyer, 0, 2) : $sellerState;
         $interState = $sellerState && $supplyState && $sellerState !== $supplyState;
 

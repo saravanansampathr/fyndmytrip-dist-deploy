@@ -338,7 +338,9 @@ Route::middleware('tenant')->group(function () {
         Route::apiResource('commission-rules', CommissionRuleController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('cancellation-policies', CancellationPolicyController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('payment-method-routes', PaymentMethodRouteController::class)->only(['index', 'store', 'update', 'destroy']);
-        Route::apiResource('supplier-connections', SupplierConnectionController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('supplier-connections', SupplierConnectionController::class)->only(['index', 'store', 'update', 'destroy'])
+            // The controller takes $tenantSupplierConfig, so bind {tenantSupplierConfig}; with the default {supplier_connection} edit and disconnect always got 403.
+            ->parameters(['supplier-connections' => 'tenantSupplierConfig']);
         Route::apiResource('payment-gateway-configs', PaymentGatewayConfigController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('notification-gateway-configs', NotificationGatewayConfigController::class)->only(['index', 'store', 'update', 'destroy']);
         // Own inventory — dedicated model/table/controller per Product

@@ -32,5 +32,12 @@ class GstInvoiceTest extends TestCase
         $this->assertNull($g['seller_gstin']);
         $this->assertSame('998559', $g['sac']);
         $this->assertCount(2, $g['lines']);
+        $this->assertSame('33 - Tamil Nadu', $g['place_of_supply']);
+    }
+
+    public function test_without_a_seller_gstin_tamil_nadu_is_home_state(): void
+    {
+        $this->assertSame('CGST (9%)', app(GstService::class)->breakdown(Booking::MODULE_HOTEL, 18.0, null, '33AAACX9999L1Z2')['lines'][0]['label']);
+        $this->assertSame('IGST (18%)', app(GstService::class)->breakdown(Booking::MODULE_HOTEL, 18.0, null, '29AAACX9999L1Z2')['lines'][0]['label']);
     }
 }
