@@ -185,6 +185,11 @@ Route::middleware('tenant')->group(function () {
     // Password screens — see WhiteLabelController::current()'s docblock.
     Route::get('/whitelabel/current', [WhiteLabelController::class, 'current']);
 
+    // Phase 2: banners, offers, FAQ and SEO text; public images; agent sign-up.
+    Route::get('/content', [\App\Http\Controllers\Api\ContentController::class, 'index']);
+    Route::get('/media/{id}/{name?}', [\App\Http\Controllers\Api\ContentController::class, 'media'])->whereNumber('id');
+    Route::post('/agent-signup', [\App\Http\Controllers\Api\AgentApplicationController::class, 'store'])->middleware('throttle:5,1');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
@@ -226,6 +231,17 @@ Route::middleware('tenant')->group(function () {
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Content (banners, offers, FAQ, SEO) and agent applications.
+        Route::get('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'adminIndex']);
+        Route::post('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'store']);
+        Route::put('/admin/content/{item}', [\App\Http\Controllers\Api\ContentController::class, 'update']);
+        Route::delete('/admin/content/{item}', [\App\Http\Controllers\Api\ContentController::class, 'destroy']);
+        Route::post('/admin/media', [\App\Http\Controllers\Api\ContentController::class, 'upload'])->middleware('throttle:30,1');
+        Route::get('/admin/agent-applications', [\App\Http\Controllers\Api\AgentApplicationController::class, 'index']);
+        Route::get('/admin/agent-applications/{id}', [\App\Http\Controllers\Api\AgentApplicationController::class, 'show'])->whereNumber('id');
+        Route::post('/admin/agent-applications/{id}/approve', [\App\Http\Controllers\Api\AgentApplicationController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/agent-applications/{id}/reject', [\App\Http\Controllers\Api\AgentApplicationController::class, 'reject'])->whereNumber('id');
+        Route::get('/admin/kyc-documents/{doc}/file', [\App\Http\Controllers\Api\AgentApplicationController::class, 'file'])->whereNumber('doc');
         // Partner webhooks.
         Route::get('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'index']);
         Route::post('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'store']);

@@ -34,6 +34,9 @@ class AuditTrail
         \App\Domains\Settings\Models\AppSetting::class => 'Settings',
         \App\Domains\Cms\Models\CmsPage::class => 'Website page',
         \App\Domains\Auth\Models\RolePermission::class => 'Role permission',
+        \App\Domains\Cms\Models\ContentItem::class => 'Website content',
+        \App\Domains\Kyc\Models\AgentApplication::class => 'Agent application',
+        \App\Domains\Webhooks\Models\WebhookEndpoint::class => 'Webhook',
     ];
 
     protected const SECRET = '/(secret|password|token|api_key|apikey|private|credential|auth_key|access_key|recovery)/i';

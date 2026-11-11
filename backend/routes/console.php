@@ -29,3 +29,4 @@ Schedule::command(\App\Console\Commands\ExpireHeldBookings::class)->everyFiveMin
 Schedule::command(\App\Console\Commands\TicketingDeadlineAlerts::class)->hourly()->withoutOverlapping();
 Schedule::call(fn () => app(\App\Domains\Webhooks\Services\WebhookDispatcher::class)->retryDue())
     ->everyMinute()->name('webhooks-retry')->withoutOverlapping();
+Schedule::command(\App\Console\Commands\KycExpiryReminders::class)->dailyAt('09:00')->withoutOverlapping();
