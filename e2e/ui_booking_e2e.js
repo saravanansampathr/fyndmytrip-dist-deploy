@@ -313,8 +313,10 @@ async function run(browser, email, svc, opts = {}) {
     await click(page, /^Close$/);
 
     await page.goto(FE + '/my-bookings'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(800);
-    const before = (await page.locator('tbody tr').allInnerTexts()).filter(r => /Hotels/.test(r) && /\tticketed\t/.test(r)).length;
     const row = page.locator('tbody tr').filter({ hasText: 'Hotels' }).filter({ hasText: 'ticketed' }).filter({ has: page.getByRole('button', { name: 'Cancel', exact: true }) }).first();
+    // Follow the cancelled booking by its code: the list shows the latest 25
+    // bookings, so counting rows breaks once other rows move past the cut.
+    const cancelCode = ((await row.innerText()).match(/FMT\w+/) || [])[0];
     await row.getByRole('button', { name: 'Cancel', exact: true }).click(); await page.waitForTimeout(500);
     await click(page, /^Cancel booking$/);
     t = await bodyText(page);
@@ -325,8 +327,8 @@ async function run(browser, email, svc, opts = {}) {
     check('my trips: booking cancelled by the traveller', /Booking cancelled\./.test(t), t.slice(0, 300));
     await click(page, /^Close$/);
     await page.goto(FE + '/my-bookings'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(800);
-    const after = (await page.locator('tbody tr').allInnerTexts()).filter(r => /Hotels/.test(r) && /\tticketed\t/.test(r)).length;
-    check(`my trips: cancelled booking leaves the ticketed list (${before} -> ${after})`, after === before - 1);
+    const cancelledRow = (await page.locator('tbody tr').allInnerTexts()).find(r => r.includes(cancelCode)) || '';
+    check(`my trips: cancelled booking ${cancelCode} is no longer ticketed`, !!cancelCode && !!cancelledRow && !/\tticketed\t/.test(cancelledRow) && /cancel|refund/i.test(cancelledRow), cancelledRow.slice(0, 200));
     check('my trips actions: no JS errors', st.errors.length === 0, st.errors.join(' | '));
     await ctx.close();
   }
