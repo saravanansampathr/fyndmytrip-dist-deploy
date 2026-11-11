@@ -118,6 +118,10 @@ class WhiteLabelController extends Controller
                 // same way as the two keys above, straight off the chosen
                 // template, so HomePage.tsx never needs a second fetch.
                 'homepage_search_widget' => $template['homepage_search_widget'],
+                // The page layouts the storefront (storefront/ in the repo)
+                // renders for this template across the whole booking flow.
+                'template_name' => $template['name'],
+                'storefront_layout' => $template['storefront_layout'] ?? null,
             ],
         ]);
     }
