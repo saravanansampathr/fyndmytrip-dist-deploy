@@ -200,12 +200,9 @@ class HotelBookingController extends Controller
 
         $tenant = $booking->tenant;
 
-        // Same "never show markup as markup" convention as every other
-        // module's customer-facing PDF (see FlightBookingController::
-        // ticketPdf()'s docblock) — the platform's margin is folded into
-        // "Taxes and fees", never itemised as markup.
-        $baseFare = (float) $booking->supplier_net_amount;
-        $taxesAndFees = round((float) $booking->markup_amount, 2);
+        // Markup / service charge is folded into the room charges, never
+        // shown on its own (see App\Support\CustomerFare).
+        $priceRows = \App\Support\CustomerFare::rows($booking, 'Room Charges');
 
         $pdf = Pdf::loadView('pdf.hotel-voucher', [
             'booking' => $booking,
@@ -217,8 +214,7 @@ class HotelBookingController extends Controller
             'playStoreUrl' => \App\Support\PdfBranding::appLinks($tenant)['play_store_url'],
             'appStoreUrl' => \App\Support\PdfBranding::appLinks($tenant)['app_store_url'],
             'generatedAt' => now()->format('d M Y, h:i A'),
-            'baseFare' => $baseFare,
-            'taxesAndFees' => $taxesAndFees,
+            'priceRows' => $priceRows,
             'total' => (float) $booking->total_amount,
         ])->setPaper('a4');
 

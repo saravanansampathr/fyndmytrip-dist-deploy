@@ -167,6 +167,7 @@ class TripJackFlightSupplierAdapter implements SupplierAdapterInterface
             confirmedNetAmount: number_format((float) ($fare['NF'] ?? $fare['TF'] ?? 0), 2, '.', ''),
             isRefundable: (bool) ($trip['isRefundable'] ?? false),
             rules: $response['fareRules'] ?? [],
+            taxBreakup: $this->taxBreakup($trip['totalPriceList'][0]['fd']['ADULT']['afC']['TAF'] ?? [], $fare),
         );
     }
 
@@ -305,5 +306,28 @@ class TripJackFlightSupplierAdapter implements SupplierAdapterInterface
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * TripJack's afC.TAF per-tax amounts (AGST = airline GST, YQ, YR, OT,
+     * ...), falling back to fC.TAF as one line.
+     *
+     * @return array<string, string>
+     */
+    protected function taxBreakup(array $taf, array $fare): array
+    {
+        $out = [];
+        foreach ($taf as $code => $amount) {
+            if ((float) $amount == 0.0) {
+                continue;
+            }
+            $code = strtoupper((string) $code) === 'AGST' ? 'K3' : strtoupper((string) $code);
+            $out[$code] = number_format((float) $amount + (float) ($out[$code] ?? 0), 2, '.', '');
+        }
+        if ($out === [] && (float) ($fare['TAF'] ?? 0) > 0) {
+            $out['OT'] = number_format((float) $fare['TAF'], 2, '.', '');
+        }
+
+        return $out;
     }
 }
