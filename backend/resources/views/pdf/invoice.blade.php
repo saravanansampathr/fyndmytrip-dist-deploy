@@ -150,7 +150,9 @@
                         3rd Floor, No.17/A2, Daaru Complex, Gandhi Road, Alwarthirunagar, Chennai 600087<br>
                     @endif
                     Tel: {{ $tenant?->support_phone ?? '9841811880' }} · {{ $tenant?->support_email ?? 'care@fyndmytrip.com' }}
-                    @if($tenant?->business_registration_no)
+                    @if(!empty($gst['seller_gstin']))
+                        <br>GSTIN: {{ $gst['seller_gstin'] }}
+                    @elseif($tenant?->business_registration_no)
                         <br>Reg. No: {{ $tenant->business_registration_no }}
                     @endif
                 </div>
@@ -168,6 +170,10 @@
                     <div>Invoice No: <strong>{{ $invoiceNumber }}</strong></div>
                     <div>Invoice Date: <strong>{{ $invoiceDate }}</strong></div>
                     <div>Booking ID: <strong>{{ $booking->booking_code ?? $booking->booking_reference }}</strong></div>
+                    @if(!empty($gst))
+                        <div>SAC: <strong>{{ $gst['sac'] }}</strong></div>
+                        @if($gst['place_of_supply'])<div>Place of supply: <strong>{{ $gst['place_of_supply'] }}</strong></div>@endif
+                    @endif
                 </div>
             </td>
         </tr>
@@ -182,7 +188,9 @@
                     @if($billTo['address'])
                         <div>{{ $billTo['address'] }}</div>
                     @endif
-                    @if($billTo['registration_no'])
+                    @if(!empty($gst['buyer_gstin']))
+                        <div>GSTIN: {{ $gst['buyer_gstin'] }}</div>
+                    @elseif($billTo['registration_no'])
                         <div>Reg. No: {{ $billTo['registration_no'] }}</div>
                     @endif
                     @if($billTo['phone'] || $billTo['email'])
@@ -228,6 +236,12 @@
                 <td>Total Amount ({{ strtoupper($billToLabel === 'Customer' ? 'amount paid' : 'amount payable') }})</td>
                 <td class="amount">{{ $booking->currency }} {{ number_format($total, 2) }}</td>
             </tr>
+            @if(!empty($foreignCharge))
+                <tr>
+                    <td>Charged to card in {{ $foreignCharge->charge_currency }} (1 {{ $booking->currency }} = {{ rtrim(rtrim(number_format((float) $foreignCharge->fx_rate, 6, '.', ''), '0'), '.') }} {{ $foreignCharge->charge_currency }}, on {{ number_format((float) $foreignCharge->amount, 2) }} {{ $booking->currency }} paid by card)</td>
+                    <td class="amount">{{ $foreignCharge->charge_currency }} {{ number_format((float) $foreignCharge->charge_amount, in_array($foreignCharge->charge_currency, ['JPY']) ? 0 : (in_array($foreignCharge->charge_currency, ['KWD','BHD','OMR']) ? 3 : 2)) }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
 

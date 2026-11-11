@@ -10,6 +10,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 export BACKEND_DIR="$ROOT/backend"
 export RESULTS_DIR="${RESULTS_DIR:-$ROOT/e2e/results}"
 export E2E_DB="${E2E_DB:-$RESULTS_DIR/e2e.sqlite}"
+export FX_FIXED_RATES="${FX_FIXED_RATES:-USD=0.012,EUR=0.011,GBP=0.0094,AED=0.044,SAR=0.045,SGD=0.016,AUD=0.018,CAD=0.016}"
 export API_URL="${API_URL:-http://127.0.0.1:8010}" FE_URL="${FE_URL:-http://127.0.0.1:8020}" SF_URL="${SF_URL:-http://127.0.0.1:8030}"
 mkdir -p "$RESULTS_DIR"
 [ -f "$BACKEND_DIR/.env" ] || { cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"; (cd "$BACKEND_DIR" && php artisan key:generate --force >/dev/null); }

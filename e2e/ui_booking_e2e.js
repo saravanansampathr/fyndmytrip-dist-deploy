@@ -12,8 +12,9 @@ const check = (n, ok, d = '') => { results.push({ n, ok: !!ok, d: String(d).slic
 const money = t => parseFloat(String(t).replace(/[₹,\s]/g, ''));
 const near = (a, b) => Math.abs(a - b) <= 1; // the site rounds to whole rupees
 
-async function session(browser, email) {
-  const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+async function session(browser, email, ctxOpts = {}, currency = null) {
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, ...ctxOpts });
+  if (currency) await ctx.addInitScript(c => { try { localStorage.setItem('fyndmytrip_currency', c); } catch (e) {} }, currency);
   const page = await ctx.newPage();
   const st = { errors: [], offers: {}, holds: [], lastConfirm: null };
   page.on('pageerror', e => st.errors.push('pageerror: ' + e.message));
@@ -170,6 +171,45 @@ async function run(browser, email, svc, opts = {}) {
   await run(browser, 'customer@fyndmytrip.com', 'flight', { extras: true, label: 'flight with add-on' });
   await run(browser, 'customer@fyndmytrip.com', 'flight', { partial: 1000, label: 'flight wallet ₹1000 + gateway' });
   await run(browser, 'customer@fyndmytrip.com', 'flight', { gateway: true, label: 'flight gateway only' });
+
+  // ---- multi-currency: the visitor's currency is picked from their country, and they pay in it ----
+  {
+    const { ctx, page, st } = await session(browser, null, { timezoneId: 'Asia/Dubai' });
+    await page.goto(FE + '/'); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
+    const cur = await page.evaluate(() => localStorage.getItem('fyndmytrip_currency'));
+    check('currency: a first visit from Dubai switches to AED', cur === 'AED', cur);
+    check('currency: no JS errors on first visit', st.errors.length === 0, st.errors.join(' | '));
+    await ctx.close();
+  }
+  {
+    const { ctx, page, st } = await session(browser, 'customer@fyndmytrip.com', {}, 'USD');
+    let payBody = null;
+    page.on('request', r => { if (r.method() === 'POST' && /\/pay$/.test(r.url())) payBody = r.postData(); });
+    await page.goto(FE + '/flights'); await page.waitForLoadState('networkidle');
+    await click(page, /^Search flights$/); await click(page, /^Book$/);
+    await contact(page);
+    await page.fill('#first-name-0', 'Asha'); await page.fill('#last-name-0', 'Rao');
+    await click(page, /Continue to seats/); await click(page, /Continue to review/);
+    await page.locator('input[type=checkbox]').first().uncheck(); await page.waitForTimeout(300);
+    await click(page, /^(Pay|Proceed to payment gateway)/);
+    const note = page.locator('[data-testid=charge-note]');
+    const noteText = (await note.count()) ? await note.first().innerText() : '';
+    check('currency: payment step says the card is charged in USD', /charged \$[\d,.]+ USD/.test(noteText), noteText || 'no charge note');
+    await click(page, /International cards|UPI/); await click(page, /completed payment/);
+    const t = await bodyText(page);
+    check('currency: USD flight booking confirmed', /Booking confirmed/.test(t), t.slice(0, 200));
+    check('currency: the payment call carried currency USD', /"currency":"USD"/.test(payBody || ''), payBody);
+    const token = await page.evaluate(() => localStorage.getItem('fyndmytrip_token'));
+    const pays = await page.evaluate(async ([api, tk]) => {
+      const r = await fetch(api + '/api/my-payments', { headers: { Accept: 'application/json', ...(tk ? { Authorization: 'Bearer ' + tk } : {}) } });
+      return r.ok ? r.json() : { status: r.status };
+    }, [API, token]);
+    const list = pays.data || pays;
+    const last = Array.isArray(list) ? list.find(p => p.purpose === 'booking_payment') : null;
+    check('currency: My Payments records the USD charge', last && last.charge_currency === 'USD' && parseFloat(last.charge_amount) > 0, JSON.stringify(last || pays).slice(0, 200));
+    check('currency: no JS errors paying in USD', st.errors.length === 0, st.errors.join(' | '));
+    await ctx.close();
+  }
 
   // ---- holiday package: request booking, then pay in the page ----
   {
