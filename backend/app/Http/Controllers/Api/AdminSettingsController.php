@@ -35,7 +35,12 @@ class AdminSettingsController extends Controller
             'tax' => $this->settings->get('tax'),
             'security' => $this->settings->get('security'),
             'monitoring' => $this->settings->get('monitoring'),
+            'platform' => $this->settings->get('platform'),
+            'currency' => $this->settings->get('currency'),
             'options' => [
+                'currencies' => \App\Domains\Payments\Services\CurrencyService::SUPPORTED,
+                'base_currency' => app(\App\Domains\Payments\Services\CurrencyService::class)->base(),
+                'live_rates' => rescue(fn () => app(\App\Domains\Payments\Services\CurrencyService::class)->rates(), [], false),
                 'services' => self::SERVICES,
                 'states' => GstService::STATES,
                 'roles' => [User::ROLE_SUPER_ADMIN, User::ROLE_STAFF, User::ROLE_PARTNER_ADMIN, User::ROLE_AGENT, User::ROLE_SUB_AGENT, User::ROLE_STAFF_USER, User::ROLE_CUSTOMER],
@@ -47,7 +52,7 @@ class AdminSettingsController extends Controller
     {
         $user = $request->user();
         $this->staffOnly($user);
-        abort_unless(in_array($group, ['tax', 'security', 'monitoring'], true), 404);
+        abort_unless(in_array($group, ['tax', 'security', 'monitoring', 'platform', 'currency'], true), 404);
 
         $rules = match ($group) {
             'tax' => [
@@ -73,6 +78,26 @@ class AdminSettingsController extends Controller
                 'require_2fa_roles' => ['sometimes', 'array'],
                 'require_2fa_roles.*' => ['string', Rule::in([User::ROLE_SUPER_ADMIN, User::ROLE_STAFF, User::ROLE_PARTNER_ADMIN, User::ROLE_AGENT, User::ROLE_SUB_AGENT, User::ROLE_STAFF_USER])],
             ],
+            'platform' => [
+                'home_country' => ['sometimes', 'string', 'size:2'],
+                'search_cache_seconds' => ['sometimes', 'integer', 'min:0', 'max:3600'],
+                'supplier_failure_threshold' => ['sometimes', 'integer', 'min:1', 'max:50'],
+                'supplier_cooldown_seconds' => ['sometimes', 'integer', 'min:5', 'max:3600'],
+                'hold_expiry_minutes' => ['sometimes', 'integer', 'min:0', 'max:10080'],
+                'ticketing_alert_hours' => ['sometimes', 'integer', 'min:1', 'max:720'],
+                'maintenance' => ['sometimes', 'array'],
+                'maintenance.enabled' => ['sometimes', 'boolean'],
+                'maintenance.message' => ['sometimes', 'nullable', 'string', 'max:500'],
+            ],
+            'currency' => [
+                'enabled' => ['sometimes', 'array', 'min:1'],
+                'enabled.*' => ['string', Rule::in(\App\Domains\Payments\Services\CurrencyService::SUPPORTED)],
+                'fx_margin_percent' => ['sometimes', 'numeric', 'min:0', 'max:10'],
+                'fixed_rates' => ['sometimes', 'array'],
+                'fixed_rates.*' => ['nullable', 'numeric', 'min:0'],
+                'country_currency' => ['sometimes', 'array'],
+                'country_currency.*' => ['string', Rule::in(\App\Domains\Payments\Services\CurrencyService::SUPPORTED)],
+            ],
             'monitoring' => [
                 'alert_emails' => ['sometimes', 'array', 'max:10'],
                 'alert_emails.*' => ['email'],
@@ -87,6 +112,31 @@ class AdminSettingsController extends Controller
         if (isset($data['sac_codes'])) {
             $data['sac_codes'] = array_intersect_key($data['sac_codes'], array_flip(self::SERVICES));
         }
+        if (isset($data['home_country'])) {
+            $data['home_country'] = strtoupper($data['home_country']);
+        }
+        if (isset($data['fixed_rates'])) {
+            $data['fixed_rates'] = collect($data['fixed_rates'])->mapWithKeys(fn ($v, $k) => [strtoupper($k) => $v])
+                ->filter(fn ($v, $k) => in_array($k, \App\Domains\Payments\Services\CurrencyService::SUPPORTED, true) && is_numeric($v) && $v > 0)
+                ->map(fn ($v) => (float) $v)->all();
+            \Illuminate\Support\Facades\Cache::forget('currency_rates.'.app(\App\Domains\Payments\Services\CurrencyService::class)->base());
+        }
+        if (isset($data['country_currency'])) {
+            $data['country_currency'] = collect($data['country_currency'])->mapWithKeys(fn ($v, $k) => [strtoupper($k) => strtoupper($v)])
+                ->filter(fn ($v, $k) => preg_match('/^[A-Z]{2}$/', $k))->all();
+        }
+        if ($group === 'currency' && (isset($data['fixed_rates']) || isset($data['country_currency']))) {
+            // Maps replace whole (a removed country/rate must go away).
+            if ($row = \App\Domains\Settings\Models\AppSetting::query()->where('key', 'currency')->first()) {
+                $v = (array) $row->value;
+                foreach (['fixed_rates', 'country_currency'] as $k) {
+                    if (array_key_exists($k, $data)) {
+                        unset($v[$k]);
+                    }
+                }
+                $row->forceFill(['value' => $v])->saveQuietly();
+            }
+        }
         foreach (['invoice_prefix', 'credit_note_prefix'] as $k) {
             if (isset($data[$k])) {
                 $data[$k] = strtoupper($data[$k]);
@@ -94,6 +144,38 @@ class AdminSettingsController extends Controller
         }
 
         return response()->json(['data' => $this->settings->put($group, $data, $user->id)]);
+    }
+
+    /* ---------------- Change history ---------------- */
+
+    public function auditLogs(Request $request)
+    {
+        $user = $request->user();
+        $q = \App\Domains\Audit\Models\AuditLog::query()->with('user:id,name,email,role')->latest('id');
+        if (! $user->isPlatformStaff()) {
+            abort_unless($user->role === User::ROLE_PARTNER_ADMIN && $user->tenant, 403);
+            $q->whereIn('tenant_id', app(\App\Domains\Tenancy\Services\TenantService::class)->getDescendantIdsRobust($user->tenant));
+        }
+        $f = $request->validate([
+            'type' => ['nullable', 'string', 'max:60'], 'user_id' => ['nullable', 'integer'],
+            'from' => ['nullable', 'date'], 'to' => ['nullable', 'date'], 'q' => ['nullable', 'string', 'max:100'],
+        ]);
+        $q->when($f['type'] ?? null, fn ($q, $v) => $q->where('subject_type', $v))
+            ->when($f['user_id'] ?? null, fn ($q, $v) => $q->where('user_id', $v))
+            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('created_at', '>=', $v))
+            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('created_at', '<', \Carbon\Carbon::parse($v)->addDay()))
+            ->when($f['q'] ?? null, fn ($q, $v) => $q->where('label', 'like', '%'.$v.'%'));
+        $page = $q->paginate(50);
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn ($l) => [
+                'id' => $l->id, 'at' => $l->created_at?->toIso8601String(), 'action' => $l->action,
+                'type' => $l->subject_type, 'subject_id' => $l->subject_id, 'label' => $l->label, 'changes' => $l->changes, 'ip' => $l->ip,
+                'user' => $l->user ? ['id' => $l->user->id, 'name' => $l->user->name, 'email' => $l->user->email] : null,
+            ]),
+            'meta' => ['total' => $page->total(), 'page' => $page->currentPage(), 'last_page' => $page->lastPage()],
+            'types' => array_map('class_basename', array_keys(\App\Domains\Audit\Services\AuditTrail::WATCHED)),
+        ]);
     }
 
     /* ---------------- Message templates ---------------- */

@@ -220,6 +220,13 @@ Route::middleware('tenant')->group(function () {
         Route::post('/admin/failed-bookings/{booking}/issue', [\App\Http\Controllers\Api\FailedBookingController::class, 'issue']);
         Route::post('/admin/failed-bookings/{booking}/refund', [\App\Http\Controllers\Api\FailedBookingController::class, 'refund']);
 
+        // Phase 2: change history, roles and per-user rights.
+        Route::get('/admin/audit-logs', [\App\Http\Controllers\Api\AdminSettingsController::class, 'auditLogs']);
+        Route::get('/admin/roles', [\App\Http\Controllers\Api\RolesController::class, 'index']);
+        Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
+        Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
+        Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+
         Route::apiResource('tenants', TenantController::class)->only(['index', 'show', 'store']);
         Route::get('/tenants/{tenant}/users', [TenantUserController::class, 'index']);
         Route::post('/tenants/{tenant}/users', [TenantUserController::class, 'store']);

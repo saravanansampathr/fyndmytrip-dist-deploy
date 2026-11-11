@@ -112,6 +112,7 @@ class PlatformSettingsController extends Controller
         }
 
         $tenant->update($data);
+        \Illuminate\Support\Facades\Cache::forget('fyndmytrip:maintenance:legacy');
 
         return response()->json(['data' => new TenantResource($tenant->fresh())]);
     }

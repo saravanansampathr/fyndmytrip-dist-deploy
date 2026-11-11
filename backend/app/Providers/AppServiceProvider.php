@@ -43,5 +43,16 @@ class AppServiceProvider extends ServiceProvider
             Wallet::OWNER_TENANT => Tenant::class,
             Wallet::OWNER_USER => User::class,
         ]);
+
+        // Who changed which business setting (Admin settings → Change history).
+        foreach (array_keys(\App\Domains\Audit\Services\AuditTrail::WATCHED) as $class) {
+            foreach (['created', 'updated', 'deleted'] as $event) {
+                $class::$event(fn ($model) => app(\App\Domains\Audit\Services\AuditTrail::class)->record($model, $event));
+            }
+        }
+
+        // Server settings that admins now change in Admin settings → Platform
+        // (they used to be .env values) override the config defaults.
+        app(\App\Domains\Settings\Services\SettingsService::class)->applyPlatformConfig();
     }
 }

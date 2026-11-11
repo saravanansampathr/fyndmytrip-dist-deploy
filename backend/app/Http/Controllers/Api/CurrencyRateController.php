@@ -18,7 +18,7 @@ class CurrencyRateController extends Controller
     public function index(Request $request, CurrencyService $currencies)
     {
         $country = $currencies->detectCountry($request);
-        $rates = $currencies->rates();
+        $rates = $currencies->customerRates();
         $suggested = $currencies->currencyForCountry($country);
 
         return response()->json(['data' => [

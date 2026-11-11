@@ -61,6 +61,7 @@ class User extends Authenticatable
         'last_login_at' => 'datetime',
         'two_factor_confirmed_at' => 'datetime',
         'is_guest' => 'boolean',
+        'permission_overrides' => 'array',
     ];
 
     /**

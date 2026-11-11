@@ -13,7 +13,18 @@ use Illuminate\Database\Seeder;
  */
 class RolePermissionSeeder extends Seeder
 {
+    public static function defaults(): array
+    {
+        return (new self)->grants();
+    }
+
     public function run(): void
+    {
+        $grants = $this->grants();
+        $this->apply($grants);
+    }
+
+    protected function grants(): array
     {
         // pricing.view_margin ("Margin need to show to all even i am
         // keeping markup to super admin") deliberately has NO grants below —
@@ -150,7 +161,19 @@ class RolePermissionSeeder extends Seeder
             ],
         ];
 
+        return $grants;
+    }
+
+    public function apply(array $grants): void
+    {
+        // Roles an admin has edited on Admin settings → Roles keep the
+        // admin's choices; only untouched roles follow these defaults.
+        $customised = (array) app(\App\Domains\Settings\Services\SettingsService::class)->value('roles', 'customised', []);
+
         foreach ($grants as $role => $permissions) {
+            if (in_array($role, $customised, true)) {
+                continue;
+            }
             foreach ($permissions as $permission) {
                 RolePermission::query()->firstOrCreate([
                     'role_key' => $role,

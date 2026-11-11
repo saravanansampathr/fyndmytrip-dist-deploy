@@ -121,6 +121,30 @@ class TenantUserController extends Controller
         ]);
     }
 
+    /**
+     * Extra rights for one user on top of their role, or rights taken
+     * away (e.g. an "accounts only" staff user: no booking.create, plus
+     * wallet.view). You can only hand out rights you hold yourself.
+     */
+    public function rights(Request $request, Tenant $tenant, User $user)
+    {
+        $acting = $request->user();
+        $this->authorizeManage($acting, $tenant);
+        abort_if($user->tenant_id !== $tenant->id, 404);
+        abort_if($user->isPlatformStaff() && ! $acting->isSuperAdmin(), 403);
+        $all = \App\Http\Controllers\Api\RolesController::allKeys();
+        $data = $request->validate([
+            'grant' => ['present', 'array'], 'grant.*' => ['string', \Illuminate\Validation\Rule::in($all)],
+            'revoke' => ['present', 'array'], 'revoke.*' => ['string', \Illuminate\Validation\Rule::in($all)],
+        ]);
+        foreach ($data['grant'] as $p) {
+            abort_unless($acting->hasPermission($p), 422, "You can't give a right you don't have yourself ({$p}).");
+        }
+        $user->forceFill(['permission_overrides' => (array_filter($data) ?: null) ? ['grant' => array_values(array_unique($data['grant'])), 'revoke' => array_values(array_unique($data['revoke']))] : null])->save();
+
+        return response()->json(['data' => ['id' => $user->id, 'permission_overrides' => $user->permission_overrides, 'catalogue' => config('permissions')]]);
+    }
+
     /** Turn off two-factor login for a user who lost their phone. */
     public function resetTwoFactor(Request $request, Tenant $tenant, User $user)
     {
