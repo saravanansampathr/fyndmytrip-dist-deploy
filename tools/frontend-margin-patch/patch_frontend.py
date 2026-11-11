@@ -64,6 +64,23 @@ for old_ok, new_ok in [
 ]:
     assert s.count(old_ok) == 1, old_ok[:60]
     s = s.replace(old_ok, new_ok, 1)
+# Multi-currency: pay in the visitor's own currency. Every POST .../pay
+# carries the selected currency; on a first visit the currency is set from
+# the visitor's country (browser time zone or CDN country header); and each
+# payment-gateway step says what the card will be charged.
+old_rq = "K.interceptors.request.use(e=>{let t=qs.getState().auth.token;"
+assert s.count(old_rq) == 1
+s = s.replace(old_rq, "K.interceptors.request.use(e=>{try{if(String(e.method).toLowerCase()===`post`&&/\\/pay$/.test(e.url||``)){let c=localStorage.getItem(Us);c&&!(e.data&&e.data.currency)&&(e.data=Object.assign({},e.data||{},{currency:c}))}}catch(_){}let t=qs.getState().auth.token;", 1)
+old_rs = "K.interceptors.response.use(e=>e,e=>(e.response?.status===401&&qs.dispatch(Bs()),Promise.reject(e)));"
+assert s.count(old_rs) == 1
+s = s.replace(old_rs, old_rs + "setTimeout(()=>{try{if(!localStorage.getItem(Us)){K.get(`/currency-rates`,{params:{tz:Intl.DateTimeFormat().resolvedOptions().timeZone}}).then(r=>{let c=r.data?.data?.suggested;c&&!localStorage.getItem(Us)&&qs.dispatch(Gs(c))}).catch(()=>{})}}catch(_){}},0);", 1)
+k = "(0,U.jsx)(`h3`,{className:`mb-2 text-sm font-semibold text-brand-navy`,children:`Choose a payment method`})"
+n_notes = 0
+for m in list(re.finditer(re.escape(k) + r",\(0,U\.jsx\)\(`div`,\{className:`[^`]*`,children:\(([a-z])\?\.available_methods", s))[::-1]:
+    v = m.group(1)
+    s = s[:m.start()] + f"(0,U.jsx)(FmtChargeNote,{{amount:{v}?.amount}})," + s[m.start():]
+    n_notes += 1
+assert n_notes == 7, n_notes
 h = hashlib.sha256(s.encode()).hexdigest()[:8]
 new_js = f'index-{h}.js'
 if os.path.exists(OUT): shutil.rmtree(OUT)

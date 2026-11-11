@@ -236,6 +236,12 @@
                 <td>Total Amount ({{ strtoupper($billToLabel === 'Customer' ? 'amount paid' : 'amount payable') }})</td>
                 <td class="amount">{{ $booking->currency }} {{ number_format($total, 2) }}</td>
             </tr>
+            @if(!empty($foreignCharge))
+                <tr>
+                    <td>Charged to card in {{ $foreignCharge->charge_currency }} (1 {{ $booking->currency }} = {{ rtrim(rtrim(number_format((float) $foreignCharge->fx_rate, 6, '.', ''), '0'), '.') }} {{ $foreignCharge->charge_currency }}, on {{ number_format((float) $foreignCharge->amount, 2) }} {{ $booking->currency }} paid by card)</td>
+                    <td class="amount">{{ $foreignCharge->charge_currency }} {{ number_format((float) $foreignCharge->charge_amount, in_array($foreignCharge->charge_currency, ['JPY']) ? 0 : (in_array($foreignCharge->charge_currency, ['KWD','BHD','OMR']) ? 3 : 2)) }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
 

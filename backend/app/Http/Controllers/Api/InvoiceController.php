@@ -139,6 +139,11 @@ class InvoiceController extends Controller
             'gst' => $gstDetails,
             'lineItems' => $lineItems,
             'total' => (float) $bookingModel->total_amount,
+            // Paid by card in the customer's own currency: show what was charged.
+            'foreignCharge' => \App\Domains\Payments\Models\PaymentTransaction::query()
+                ->where('booking_id', $bookingModel->id)->where('status', 'success')
+                ->whereNotNull('charge_currency')->where('charge_currency', '!=', $bookingModel->currency)
+                ->latest('id')->first(),
         ])->setPaper('a4');
 
         $filename = ($bookingModel->booking_code ?? $bookingModel->booking_reference).'-invoice.pdf';

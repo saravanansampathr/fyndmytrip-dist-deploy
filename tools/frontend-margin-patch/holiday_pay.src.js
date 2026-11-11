@@ -1,3 +1,4 @@
+function FmtChargeNote({amount:a}){let c=Zf(),v=parseFloat(a||0);if(!v||c.currency===c.base||c.isLoading)return null;return(0,U.jsxs)(`p`,{className:`rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-800`,"data-testid":`charge-note`,children:[`Your card will be charged `,(0,U.jsx)(`strong`,{children:c.format(v)+` `+c.currency}),` (₹${v.toFixed(2)}) at today's rate. Change the currency at the top of the page to pay in another one.`]})}
 function FmtHolidayPay({booking:b,onPaid:done,base:base=`holiday-bookings`,next:next=`Our holidays team will send your vouchers before travel.`,title:title=`Pay for your holiday`}){
 let total=parseFloat(b.total_amount||b.gross_amount||0),
 [wal,setWal]=(0,x.useState)(null),[useW,setUseW]=(0,x.useState)(!0),[amt,setAmt]=(0,x.useState)(null),
@@ -11,7 +12,7 @@ return(0,U.jsxs)(X,{className:`mt-3 space-y-3`,"data-testid":`holiday-pay`,child
 (0,U.jsx)(`div`,{className:`text-sm font-semibold text-brand-navy`,children:title}),
 (0,U.jsxs)(`div`,{className:`flex items-center justify-between text-sm`,children:[(0,U.jsx)(`span`,{className:`text-slate-500`,children:`Total payable`}),(0,U.jsxs)(`span`,{className:`font-bold text-brand-navy`,children:[`₹`,total.toFixed(2)]})]}),
 pay?(0,U.jsxs)(U.Fragment,{children:[
-(0,U.jsxs)(`p`,{className:`text-xs text-slate-500`,children:[`₹`,parseFloat(pay.wallet_amount_applied||0).toFixed(2),` from your wallet once payment is confirmed · ₹`,parseFloat(pay.amount).toFixed(2),` via payment gateway (transaction #`,pay.transaction_id,`)`]}),
+(0,U.jsxs)(`p`,{className:`text-xs text-slate-500`,children:[`₹`,parseFloat(pay.wallet_amount_applied||0).toFixed(2),` from your wallet once payment is confirmed · ₹`,parseFloat(pay.amount).toFixed(2),` via payment gateway (transaction #`,pay.transaction_id,`)`]}),(0,U.jsx)(FmtChargeNote,{amount:pay.amount}),
 (0,U.jsx)(`div`,{className:`grid grid-cols-2 gap-2`,children:(pay.available_methods??[]).map(m=>(0,U.jsx)(`button`,{type:`button`,onClick:()=>setMeth(m.method),className:`rounded-md border px-2 py-2 text-xs ${meth===m.method?`border-brand-teal bg-brand-teal/5 ring-1 ring-brand-teal`:`border-slate-300`}`,children:(Yne[m.method]?.icon??``)+` `+(bf[m.method]??m.method)},m.method))}),
 (0,U.jsx)(`p`,{className:`text-xs text-slate-400`,children:`In production this step opens the payment gateway's hosted checkout and returns here once it calls back.`}),
 (0,U.jsx)(J,{className:`w-full`,onClick:finish,disabled:busy,children:busy?`Confirming…`:`I've completed payment`})]}):(0,U.jsxs)(U.Fragment,{children:[

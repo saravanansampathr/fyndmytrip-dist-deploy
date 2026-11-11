@@ -85,12 +85,19 @@ class PaymentGatewayService
      * from the gateway's server-to-server callback. See
      * FlightBookingController::payGateway().
      */
-    public function settle(PaymentTransaction $transaction, Tenant $tenant, string $method): PaymentTransaction
+    public function settle(PaymentTransaction $transaction, Tenant $tenant, string $method, ?string $chargeCurrency = null): PaymentTransaction
     {
+        // The customer pays in their own currency (sent as `currency` on
+        // every /pay call); the booking stays priced in INR.
+        $charge = app(CurrencyService::class)->chargeFor((string) $transaction->amount, $chargeCurrency ?? request()->input('currency'));
+
         $transaction->update([
             'status' => PaymentTransaction::STATUS_SUCCESS,
             'method' => $method,
             'gateway' => $this->resolveGatewayForMethod($tenant, $method),
+            'charge_currency' => $charge['currency'],
+            'charge_amount' => $charge['amount'],
+            'fx_rate' => $charge['rate'],
         ]);
 
         return $transaction;

@@ -92,6 +92,9 @@ class MyPaymentsController extends Controller
                 'amount' => (string) $txn->amount,
                 'wallet_amount' => (string) $txn->wallet_amount,
                 'currency' => $txn->currency,
+                'charge_currency' => $txn->charge_currency,
+                'charge_amount' => $txn->charge_amount !== null ? (string) $txn->charge_amount : null,
+                'fx_rate' => $txn->fx_rate !== null ? (string) $txn->fx_rate : null,
                 'status' => $txn->status,
                 'created_at' => $txn->created_at,
             ];
