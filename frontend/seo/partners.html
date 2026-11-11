@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e1c66" />
+
+    <!--
+      Site-wide fallback SEO tags — the very first thing a crawler, a shared
+      link preview, or a browser tab sees before the SPA has hydrated.
+      HomePage and each vertical's search page (Flights/Hotels/Buses/...)
+      override title + description per-route via useDocumentTitle once
+      mounted — see src/hooks/useDocumentTitle.ts's docblock for why this
+      exists as a real gap: every route used to inherit this same generic
+      tag, which is not how MakeMyTrip/Goibibo/Cleartrip/EaseMyTrip do it.
+    -->
+    <title>B2B Travel Portal for Travel Agents, Corporates &amp; Resellers | FyndMyTrip</title>
+    <meta name="description" content="Join the FyndMyTrip B2B travel portal: agent fares on flights, hotels, buses and holidays, your own markups, credit wallet, white-label booking website, travel API and GST invoices." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FyndMyTrip" />
+    <meta property="og:title" content="B2B Travel Portal for Travel Agents, Corporates &amp; Resellers | FyndMyTrip" />
+    <meta property="og:description" content="Join the FyndMyTrip B2B travel portal: agent fares on flights, hotels, buses and holidays, your own markups, credit wallet, white-label booking website, travel API and GST invoices." />
+    <meta property="og:image" content="https://demo.fyndmytrip.in/logo.png" />
+    <meta property="og:url" content="https://demo.fyndmytrip.in/partners" />
+    <link rel="canonical" href="https://demo.fyndmytrip.in/partners" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://demo.fyndmytrip.in/"}, {"@type": "ListItem", "position": 2, "name": "Grow your travel business with FyndMyTrip", "item": "https://demo.fyndmytrip.in/partners"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Who can apply for a B2B account?", "acceptedAnswer": {"@type": "Answer", "text": "Registered travel agencies, tour operators, corporates with a travel desk and online travel resellers can apply. Keep your PAN, GSTIN (if registered) and business proof ready."}}, {"@type": "Question", "name": "How do I pay for bookings?", "acceptedAnswer": {"@type": "Answer", "text": "Agents book from a prepaid or credit wallet, topped up by bank transfer, UPI or card. Every top-up and booking shows in your ledger."}}, {"@type": "Question", "name": "Can my clients see my markup?", "acceptedAnswer": {"@type": "Answer", "text": "No. Your clients see one fare with your markup included. You can also print tickets without a fare for your clients."}}, {"@type": "Question", "name": "Do you offer a white-label website?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Choose from more than 50 website designs, use your own domain and logo, and your customers book directly with you."}}, {"@type": "Question", "name": "Is there an API?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Our partner API covers search, booking, ticketing and cancellation, with sandbox keys for testing."}}]}, {"@type": "Service", "name": "FyndMyTrip B2B travel portal", "serviceType": "B2B travel booking platform", "provider": {"@type": "Organization", "name": "FyndMyTrip", "url": "https://demo.fyndmytrip.in/"}, "areaServed": "Worldwide", "audience": {"@type": "BusinessAudience", "audienceType": "Travel agents, tour operators, corporates and online resellers"}, "url": "https://demo.fyndmytrip.in/partners"}, {"@type": "WebPage", "name": "B2B Travel Portal for Travel Agents, Corporates & Resellers | FyndMyTrip", "url": "https://demo.fyndmytrip.in/partners", "description": "Join the FyndMyTrip B2B travel portal: agent fares on flights, hotels, buses and holidays, your own markups, credit wallet, white-label booking website, travel API and GST invoices.", "inLanguage": "en"}]}</script>
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="B2B Travel Portal for Travel Agents, Corporates &amp; Resellers | FyndMyTrip" />
+    <meta name="twitter:description" content="Join the FyndMyTrip B2B travel portal: agent fares on flights, hotels, buses and holidays, your own markups, credit wallet, white-label booking website, travel API and GST invoices." />
+
+    <script>
+      // Structured data (schema.org Organization + WebSite/SearchAction) so
+      // search engines can show a sitelinks search box and attribute pages
+      // to the FyndMyTrip brand. Built from window.location.origin rather
+      // than a hard-coded domain, since this same build is served from more
+      // than one hostname (demo.fyndmytrip.in today, possibly a different
+      // production domain later) — this way the markup is always correct
+      // for whichever host actually served the page, with no deploy-time
+      // config needed. The SearchAction target is a real, working URL
+      // (PackagesPage reads its `q` query param — see that page's
+      // useSearchParams initialization).
+      (function () {
+        var origin = window.location.origin
+        var ld = document.createElement('script')
+        ld.type = 'application/ld+json'
+        ld.text = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            { '@type': 'Organization', name: 'FyndMyTrip', url: origin, logo: origin + '/logo.png' },
+            {
+              '@type': 'WebSite',
+              name: 'FyndMyTrip',
+              url: origin,
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: origin + '/packages?q={search_term_string}',
+                'query-input': 'required name=search_term_string',
+              },
+            },
+          ],
+        })
+        document.head.appendChild(ld)
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-dcf42389.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-FKMQ4pEu.css">
+      <link rel="stylesheet" href="/assets/fmt-ux-1768a58a.css">
+  </head>
+  <body>
+    <div id="root">
+<div class="fmt-pre" data-fmt-prerender>
+<header><a href="/">FyndMyTrip</a> <nav aria-label="Services">
+<a href="/flights">Flights</a>
+<a href="/hotels">Hotels</a>
+<a href="/buses">Bus tickets</a>
+<a href="/cabs">Cabs</a>
+<a href="/packages">Holiday packages</a>
+<a href="/cruises">Cruises</a>
+<a href="/activities">Activities</a>
+<a href="/insurance">Travel insurance</a>
+<a href="/visa">Visa</a>
+<a href="/partners">For travel agents (B2B)</a>
+</nav></header><main>
+<h1>Grow your travel business with FyndMyTrip</h1>
+<p>One B2B platform for travel agents, sub-agents, corporates and online resellers. Book flights, hotels, buses, cabs, holidays, insurance and visas for your clients from one login.</p>
+<p>Set your own markups, run your own branded booking website, connect through our API and get GST-compliant invoices for every booking.</p>
+<p><a href="/agent-signup">Apply for a B2B account</a> · <a href="/login">Partner log in</a></p>
+<section><h2>Frequently asked questions</h2>
+<h3>Who can apply for a B2B account?</h3><p>Registered travel agencies, tour operators, corporates with a travel desk and online travel resellers can apply. Keep your PAN, GSTIN (if registered) and business proof ready.</p>
+<h3>How do I pay for bookings?</h3><p>Agents book from a prepaid or credit wallet, topped up by bank transfer, UPI or card. Every top-up and booking shows in your ledger.</p>
+<h3>Can my clients see my markup?</h3><p>No. Your clients see one fare with your markup included. You can also print tickets without a fare for your clients.</p>
+<h3>Do you offer a white-label website?</h3><p>Yes. Choose from more than 50 website designs, use your own domain and logo, and your customers book directly with you.</p>
+<h3>Is there an API?</h3><p>Yes. Our partner API covers search, booking, ticketing and cancellation, with sandbox keys for testing.</p>
+</section>
+</main><footer><a href="/about-us">About us</a> · <a href="/contact-us">Contact us</a> · <a href="/partners">Partner with us</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms &amp; conditions</a> · <a href="/cancellation-policy">Cancellation policy</a></footer></div>
+</div>
+  </body>
+</html>

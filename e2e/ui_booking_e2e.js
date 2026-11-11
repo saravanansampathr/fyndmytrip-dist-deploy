@@ -69,7 +69,7 @@ async function payAndConfirm(page, { gateway = false, partial = null } = {}) {
   await page.getByText(/(Booking|Policy) confirmed|Total paid/).first().waitFor({ timeout: 15000 }).catch(() => {});
   const t = await bodyText(page);
   const m = t.match(/Total paid\s*\n\s*(₹[\d,.]+)/);
-  return { confirmed: /(Booking|Policy) confirmed/.test(t), paid: m ? money(m[1]) : NaN, code: (t.match(/Booking ID (FMT\w+)/) || [])[1], text: t };
+  return { confirmed: /(Booking|Policy) confirmed/.test(t), paid: m ? money(m[1]) : NaN, code: (t.match(/Booking ID\s+(FMT\w+)/i) || [])[1], text: t };
 }
 
 const contact = async page => { await fillIf(page, '#contact_email', 'e2e@example.com'); await fillIf(page, '#contact_phone', '9876543210'); };
