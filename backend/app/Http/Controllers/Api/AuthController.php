@@ -39,7 +39,12 @@ class AuthController extends Controller
                 'required', 'email', 'max:191',
                 Rule::unique('users')->where('tenant_id', $tenant->id),
             ],
-            'phone' => ['nullable', 'string', 'max:20'],
+            // users has a (tenant_id, phone) unique index: say so nicely
+            // instead of failing with a database error.
+            'phone' => [
+                'nullable', 'string', 'max:20',
+                Rule::unique('users')->where('tenant_id', $tenant->id),
+            ],
             'password' => ['required', 'string', 'min:8'],
         ]);
 
@@ -173,7 +178,10 @@ class AuthController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:191'],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => [
+                'nullable', 'string', 'max:20',
+                Rule::unique('users')->where('tenant_id', $user->tenant_id)->ignore($user->id),
+            ],
             'email' => [
                 'nullable', 'email', 'max:191',
                 Rule::unique('users')->where('tenant_id', $user->tenant_id)->ignore($user->id),

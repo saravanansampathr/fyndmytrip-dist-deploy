@@ -60,6 +60,7 @@ class User extends Authenticatable
     protected $casts = [
         'last_login_at' => 'datetime',
         'two_factor_confirmed_at' => 'datetime',
+        'is_guest' => 'boolean',
     ];
 
     /**

@@ -246,12 +246,12 @@ export async function travellers(root, ctx) {
   if (!pick || pick.svc !== ctx.svc) { go('#/?s=' + ctx.svc); return; }
   const svc = SERVICES[ctx.svc];
   const pax = svc.pax(pick.query);
-  const u = auth.user;
+  const u = auth.member;
   const people = Array.from({ length: pax }, (_, i) => i);
   const block = (i) => `<div class="pax" data-pax="${i}">${travellerFields(svc, i, i === 0 && u ? { name: u.name, first_name: u.name.split(' ')[0], last_name: u.name.split(' ').slice(1).join(' ') } : {})}</div>`;
   const contact = `<div class="grid-2"><label class="fld" for="c-email"><span>Email</span><input id="c-email" name="contact_email" type="email" required value="${esc(u?.email || '')}"></label><label class="fld" for="c-phone"><span>Mobile</span><input id="c-phone" name="contact_phone" type="tel" value="${esc(u?.phone || '')}" placeholder="+91"></label></div>`;
   const who = u ? `<div class="signed">${icon('user', 18)} Booking as <b>${esc(u.name)}</b> (${esc(u.email)})</div>`
-    : `<div class="who"><div class="who-opt"><h4>Have an account?</h4><p class="muted">Sign in to use your wallet and see this booking in My bookings.</p><div class="grid-2"><label class="fld"><span>Email</span><input name="login_email" type="email" autocomplete="username"></label><label class="fld"><span>Password</span><input name="login_password" type="password" autocomplete="current-password"></label></div><button type="button" class="btn btn-ghost" data-login>Sign in</button></div>${svc.guest ? `<div class="who-opt"><h4>Or continue as a guest</h4><p class="muted">We'll create your account from the contact details below and email your booking.</p><label class="fld"><span>Your full name</span><input name="guest_name" value=""></label></div>` : `<div class="who-opt"><h4>New here?</h4><p class="muted">${svc.label} need an account. Create one in seconds.</p><div class="grid-2"><label class="fld"><span>Full name</span><input name="reg_name"></label><label class="fld"><span>Choose a password</span><input name="reg_password" type="password" minlength="8"></label></div><button type="button" class="btn btn-ghost" data-register>Create account</button></div>`}</div>`;
+    : `<div class="who"><div class="who-opt"><h4>Have an account?</h4><p class="muted">Sign in to use your wallet and see this booking in My bookings.</p><div class="grid-2"><label class="fld"><span>Email</span><input name="login_email" type="email" autocomplete="username"></label><label class="fld"><span>Password</span><input name="login_password" type="password" autocomplete="current-password"></label></div><button type="button" class="btn btn-ghost" data-login>Sign in</button></div>${svc.guest ? `<div class="who-opt"><h4>Or continue as a guest</h4><p class="muted">No account or password needed. We'll send your booking to the email and mobile below.</p><label class="fld"><span>Your full name</span><input name="guest_name" value=""></label></div>` : `<div class="who-opt"><h4>New here?</h4><p class="muted">${svc.label} need an account. Create one in seconds.</p><div class="grid-2"><label class="fld"><span>Full name</span><input name="reg_name"></label><label class="fld"><span>Choose a password</span><input name="reg_password" type="password" minlength="8"></label></div><button type="button" class="btn btn-ghost" data-register>Create account</button></div>`}</div>`;
   const summary = `<aside class="card mini-sum"><h4>${esc(svc.title(pick.offer))}</h4><p class="muted small">${esc(svc.subtitle(pick.offer))}</p>${pick.extra?.seats?.length ? `<p>Seats: <b>${pick.extra.seats.join(', ')}</b></p>` : ''}<p>Estimated <strong>${money(pick.estimate)}</strong></p></aside>`;
   const go_ = `<button class="btn btn-primary btn-lg" type="submit">Continue to payment ${icon('arrow', 18)}</button>`;
   const v = ctx.t.layout.travellers;
@@ -299,7 +299,7 @@ export async function travellers(root, ctx) {
       toast(empty.name === 'contact_email' ? 'Please enter a contact email.' : 'Please fill in every traveller\'s details.');
       return;
     }
-    const guest = !auth.token;
+    const guest = !auth.member;
     if (guest && !svc.guest) { toast(`Please sign in or create an account to book ${svc.label.toLowerCase()}.`); return; }
     const btn = f.querySelector('button[type=submit]');
     busy(btn, true, 'Holding your booking…');
@@ -308,6 +308,7 @@ export async function travellers(root, ctx) {
     const path = svc.bookPath ? svc.bookPath(pick.offer, guest) : (guest ? svc.guest : svc.base);
     try {
       const r = await api('POST', path, payload);
+      // Guest checkout: a session for this booking only, never a login.
       if (r.token) auth.save(r.token, r.user);
       const booking = r.data;
       store.set('booking', { svc: ctx.svc, booking, offer: pick.offer });
@@ -340,7 +341,7 @@ export async function payment(root, ctx) {
   } catch (e) { root.innerHTML = `<div class="wrap empty"><h3>Booking not found</h3><p>${esc(e.message)}</p></div>`; return; }
   if (booking.status !== 'held') { go(`#/done/${ctx.svc}/${ctx.id}`); return; }
   let wallet = null;
-  try { wallet = (await api('GET', '/wallet')).data; } catch { /* no wallet */ }
+  if (auth.member) { try { wallet = (await api('GET', '/wallet')).data; } catch { /* no wallet */ } }
   const total = Number(booking.total_amount);
   const bal = wallet ? Number(wallet.balance ?? wallet.available_balance ?? 0) : 0;
   const methods = Object.keys(METHODS).filter((m) => m !== 'fmt_wallet' || (wallet && !booking.is_international && bal >= total));

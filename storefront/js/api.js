@@ -16,6 +16,9 @@ export const auth = {
   get user() { return store.get('user'); },
   save(token, user) { store.set('token', token); store.set('user', user); },
   clear() { store.del('token'); store.del('user'); },
+  // A guest checkout session only opens the guest's own booking; it is not
+  // a signed-in account (see backend GuestCheckoutService).
+  get member() { const u = store.get('user'); return u && !u.is_guest ? u : null; },
 };
 
 export class ApiError extends Error {
@@ -43,6 +46,8 @@ export async function api(method, path, body, { raw = false } = {}) {
   const text = await res.text();
   let json = null;
   try { json = text ? JSON.parse(text) : null; } catch { json = { message: text.slice(0, 200) }; }
+  // An expired session, or a guest session used outside its booking.
+  if (res.status === 401 && auth.token) auth.clear();
   if (!res.ok) throw new ApiError(res.status, json);
   return json;
 }

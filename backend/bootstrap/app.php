@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ], append: [
+            // Guest checkout tokens only work on their own booking's pages.
+            \App\Http\Middleware\RestrictGuestCheckoutSessions::class,
+            // Customers only ever see and pay for their own bookings.
+            \App\Http\Middleware\ProtectCustomerBookings::class,
         ]);
 
         $middleware->alias([
