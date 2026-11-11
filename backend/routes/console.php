@@ -17,3 +17,9 @@ Artisan::command('inspire', function () {
 // — Laravel's scheduler checks every minute whether anything registered
 // here is due, and dailyAt('02:00') only actually fires once a day.
 Schedule::command(SendScheduledReports::class)->dailyAt('02:00');
+
+// Phase 1 (launch blockers). All need the same single cron entry above.
+Schedule::call(fn () => \Illuminate\Support\Facades\Cache::forever(\App\Domains\Settings\Services\SystemStatus::HEARTBEAT_KEY, now()->toIso8601String()))
+    ->everyMinute()->name('scheduler-heartbeat');
+Schedule::command(\App\Console\Commands\ReconcilePayments::class)->everyTenMinutes()->withoutOverlapping();
+Schedule::command(\App\Console\Commands\BackupDatabase::class)->dailyAt('01:30')->withoutOverlapping();

@@ -36,6 +36,9 @@ class PaymentTransaction extends Model
         'status',
         'method',
         'raw_gateway_response',
+        'gateway_order_id',
+        'gateway_payment_id',
+        'is_live',
     ];
 
     protected $casts = [

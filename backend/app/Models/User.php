@@ -53,12 +53,29 @@ class User extends Authenticatable
     protected $hidden = [
         'password_hash',
         'two_factor_secret',
+        'two_factor_recovery_codes',
         'remember_token',
     ];
 
     protected $casts = [
         'last_login_at' => 'datetime',
+        'two_factor_confirmed_at' => 'datetime',
     ];
+
+    /**
+     * A login token that expires after the session length set in admin
+     * (Security settings): shorter for staff and agents, longer for
+     * customers.
+     */
+    public function issueApiToken(string $name = 'api'): string
+    {
+        $security = app(\App\Domains\Settings\Services\SettingsService::class)->get('security');
+        $expiresAt = $this->role === self::ROLE_CUSTOMER
+            ? now()->addDays(max(1, (int) $security['customer_session_days']))
+            : now()->addHours(max(1, (int) $security['staff_session_hours']));
+
+        return $this->createToken($name, ['*'], $expiresAt)->plainTextToken;
+    }
 
     /**
      * Laravel's Authenticatable expects an "auth password" accessor; the

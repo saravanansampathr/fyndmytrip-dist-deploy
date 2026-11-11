@@ -66,11 +66,23 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+// Uptime monitors: database, cache, storage, cron and backup status.
+Route::get('/health', function () {
+    $report = app(\App\Domains\Settings\Services\SystemStatus::class)->report();
+
+    return response()->json($report, $report['status'] === 'down' ? 503 : 200);
+});
+
+// Razorpay / Stripe server-to-server notifications (signature-checked).
+Route::post('/payments/webhooks/{gateway}', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'webhook']);
+
 Route::middleware('tenant')->group(function () {
-    Route::post('/auth/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('auth.register');
+    // Website pages edited in Admin settings → Pages (privacy, terms...).
+    Route::get('/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'show']);
     Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
-    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
-    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1')->name('auth.forgot-password');
+    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1')->name('auth.reset-password');
 
     // Public, guest-accessible browsing — genuinely no login required, so a
     // direct customer or an agent's own customer can look at (and an agent
@@ -179,11 +191,41 @@ Route::middleware('tenant')->group(function () {
         Route::put('/auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');
         Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
 
+        // Two-factor login for the signed-in user.
+        Route::get('/auth/two-factor', [\App\Http\Controllers\Api\TwoFactorController::class, 'show']);
+        Route::post('/auth/two-factor/setup', [\App\Http\Controllers\Api\TwoFactorController::class, 'setup']);
+        Route::post('/auth/two-factor/confirm', [\App\Http\Controllers\Api\TwoFactorController::class, 'confirm']);
+        Route::post('/auth/two-factor/recovery-codes', [\App\Http\Controllers\Api\TwoFactorController::class, 'recoveryCodes']);
+        Route::post('/auth/two-factor/disable', [\App\Http\Controllers\Api\TwoFactorController::class, 'disable']);
+
+        // Real card/UPI payments (Razorpay / Stripe).
+        Route::post('/payments/checkout', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'create']);
+        Route::get('/payments/checkout/{transaction}/status', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'status']);
+
+        // Admin settings (Phase 1): tax, security, monitoring, messages,
+        // website pages, failed bookings, GST register, system health.
+        Route::get('/admin/settings', [\App\Http\Controllers\Api\AdminSettingsController::class, 'index']);
+        Route::put('/admin/settings/{group}', [\App\Http\Controllers\Api\AdminSettingsController::class, 'update']);
+        Route::get('/admin/notification-templates', [\App\Http\Controllers\Api\AdminSettingsController::class, 'templates']);
+        Route::put('/admin/notification-templates', [\App\Http\Controllers\Api\AdminSettingsController::class, 'saveTemplate']);
+        Route::delete('/admin/notification-templates/{event}/{channel}', [\App\Http\Controllers\Api\AdminSettingsController::class, 'resetTemplate']);
+        Route::post('/admin/notification-templates/test', [\App\Http\Controllers\Api\AdminSettingsController::class, 'testTemplate'])->middleware('throttle:10,1');
+        Route::get('/admin/notification-logs', [\App\Http\Controllers\Api\AdminSettingsController::class, 'logs']);
+        Route::get('/admin/gst-register', [\App\Http\Controllers\Api\AdminSettingsController::class, 'invoiceRegister']);
+        Route::get('/admin/system-status', [\App\Http\Controllers\Api\AdminSettingsController::class, 'systemStatus']);
+        Route::get('/admin/pages', [\App\Http\Controllers\Api\CmsPageController::class, 'index']);
+        Route::put('/admin/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'upsert']);
+        Route::delete('/admin/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'destroy']);
+        Route::get('/admin/failed-bookings', [\App\Http\Controllers\Api\FailedBookingController::class, 'index']);
+        Route::post('/admin/failed-bookings/{booking}/issue', [\App\Http\Controllers\Api\FailedBookingController::class, 'issue']);
+        Route::post('/admin/failed-bookings/{booking}/refund', [\App\Http\Controllers\Api\FailedBookingController::class, 'refund']);
+
         Route::apiResource('tenants', TenantController::class)->only(['index', 'show', 'store']);
         Route::get('/tenants/{tenant}/users', [TenantUserController::class, 'index']);
         Route::post('/tenants/{tenant}/users', [TenantUserController::class, 'store']);
         Route::put('/tenants/{tenant}/users/{user}', [TenantUserController::class, 'update']);
         Route::post('/tenants/{tenant}/users/{user}/reset-password', [TenantUserController::class, 'resetPassword']);
+        Route::post('/tenants/{tenant}/users/{user}/reset-two-factor', [TenantUserController::class, 'resetTwoFactor']);
 
         Route::get('/platform-settings', [PlatformSettingsController::class, 'show']);
         Route::put('/platform-settings', [PlatformSettingsController::class, 'update']);

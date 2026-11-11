@@ -19,6 +19,7 @@ return [
         'razorpay' => [
             ['key' => 'key_id', 'label' => 'Key ID', 'secret' => false, 'placeholder' => 'rzp_live_...'],
             ['key' => 'key_secret', 'label' => 'Key secret', 'secret' => true],
+            ['key' => 'webhook_secret', 'label' => 'Webhook secret (Razorpay dashboard → Webhooks)', 'secret' => true],
         ],
         'payu' => [
             ['key' => 'merchant_key', 'label' => 'Merchant key', 'secret' => false],
@@ -36,6 +37,7 @@ return [
         'stripe' => [
             ['key' => 'publishable_key', 'label' => 'Publishable key', 'secret' => false, 'placeholder' => 'pk_live_...'],
             ['key' => 'secret_key', 'label' => 'Secret key', 'secret' => true, 'placeholder' => 'sk_live_...'],
+            ['key' => 'webhook_secret', 'label' => 'Webhook signing secret', 'secret' => true, 'placeholder' => 'whsec_...'],
         ],
     ],
 ];

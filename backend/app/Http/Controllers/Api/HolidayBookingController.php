@@ -134,7 +134,7 @@ class HolidayBookingController extends Controller
         });
 
         $booking = $this->createBookingForUser($request, $slug, $user, asGuest: true);
-        $token = $user->createToken('api')->plainTextToken;
+        $token = $user->issueApiToken();
 
         return response()->json([
             'data' => new BookingResource($booking),
@@ -158,8 +158,9 @@ class HolidayBookingController extends Controller
         ['catalog' => $catalogAmount, 'net' => $netAmount, 'travelers' => $travelers, 'reseller' => $resellerPricing] = $priced;
 
         $grossAmount = \Brick\Math\BigDecimal::of($resellerPricing['gross_amount']);
+        $tcs = $this->tcsFor($package, (float) $resellerPricing['gross_amount'], $data['pan'] ?? null, $data['contact_email'] ?? $user->email);
 
-        $booking = DB::transaction(function () use ($package, $data, $user, $grossAmount, $netAmount, $catalogAmount, $resellerPricing, $travelers) {
+        $booking = DB::transaction(function () use ($package, $data, $user, $grossAmount, $netAmount, $catalogAmount, $resellerPricing, $travelers, $tcs) {
             return Booking::create([
                 'tenant_id' => $user->tenant_id,
                 'created_by_user_id' => $user->id,
@@ -198,7 +199,11 @@ class HolidayBookingController extends Controller
                     // added on top for its own customer.
                     'catalog_amount' => (string) $catalogAmount->toScale(2, \Brick\Math\RoundingMode::HALF_UP),
                     'reseller_markup_amount' => $resellerPricing['markup_amount'],
-                ],
+                ] + ($tcs['amount'] > 0 ? [
+                    'tcs_amount' => number_format($tcs['amount'], 2, '.', ''),
+                    'tcs_rate' => $tcs['rate'],
+                    'tcs_pan' => $tcs['pan'],
+                ] : []),
             ]);
         });
 
@@ -214,7 +219,28 @@ class HolidayBookingController extends Controller
             'travelers' => ['required', 'array', 'min:1', 'max:20'],
             'travelers.*.name' => ['required', 'string', 'max:191'],
             'travelers.*.occupancy_type' => ['required', 'in:adult_sharing,adult_single,child_with_bed,child_without_bed,infant'],
+            // PAN of the buyer, for TCS on overseas packages.
+            'pan' => ['nullable', 'string', 'regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/'],
         ];
+    }
+
+    /**
+     * TCS on an overseas package when it's switched on in Tax settings.
+     * Without a PAN the higher rate applies.
+     *
+     * @return array{amount: float, rate: float, pan: ?string}
+     */
+    protected function tcsFor(HolidayPackage $package, float $amount, ?string $pan, ?string $email): array
+    {
+        if ($package->booking_scope !== HolidayPackage::SCOPE_INTERNATIONAL) {
+            return ['amount' => 0.0, 'rate' => 0.0, 'pan' => null];
+        }
+        $tax = app(\App\Domains\Settings\Services\TaxService::class);
+        $pan = $pan ? strtoupper($pan) : null;
+        $already = $pan ? $tax->overseasPackageSpendThisYear($pan, $email) : PHP_FLOAT_MAX / 4;
+        $result = $tax->tcsFor($amount, $already);
+
+        return ['amount' => $result['amount'], 'rate' => $result['rate'], 'pan' => $pan];
     }
 
     protected function findBookable(string $slug, ?User $user): HolidayPackage
@@ -246,8 +272,11 @@ class HolidayBookingController extends Controller
         $package = $this->findBookable($slug, $user);
         $priced = $this->priceTravelers($package, $data['travelers'], $tenant, $user);
 
+        $tcs = $this->tcsFor($package, (float) $priced['reseller']['gross_amount'], $request->input('pan'), $user?->email);
+
         return response()->json(['data' => [
-            'total_amount' => $priced['reseller']['gross_amount'],
+            'total_amount' => number_format((float) $priced['reseller']['gross_amount'] + $tcs['amount'], 2, '.', ''),
+            'tcs_amount' => number_format($tcs['amount'], 2, '.', ''),
             'currency' => $package->currency,
             'travelers' => array_map(fn ($t) => ['occupancy_type' => $t['occupancy_type'], 'price' => $t['price']], $priced['travelers']),
         ]]);

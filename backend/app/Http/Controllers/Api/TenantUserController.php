@@ -113,11 +113,24 @@ class TenantUserController extends Controller
 
         $temporaryPassword = Str::password(12);
         $user->forceFill(['password_hash' => Hash::make($temporaryPassword)])->save();
+        $user->tokens()->delete();
 
         return response()->json([
             'message' => 'Password reset.',
             'temporary_password' => $temporaryPassword,
         ]);
+    }
+
+    /** Turn off two-factor login for a user who lost their phone. */
+    public function resetTwoFactor(Request $request, Tenant $tenant, User $user)
+    {
+        $this->authorizeManage($request->user(), $tenant);
+        abort_if($user->tenant_id !== $tenant->id, 404);
+
+        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+        $user->tokens()->delete();
+
+        return response()->json(['message' => 'Two-factor login turned off. The user can set it up again after signing in.']);
     }
 
     /**

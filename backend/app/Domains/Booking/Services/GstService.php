@@ -49,18 +49,22 @@ class GstService
     {
         $seller = self::gstin($sellerReg);
         $buyer = self::gstin($buyerReg);
-        $sellerState = $seller ? substr($seller, 0, 2) : (string) config('booking.gst_home_state', '33');
+        $tax = app(\App\Domains\Settings\Services\TaxService::class);
+        $rate = $tax->gstRate($module);
+        $rateLabel = rtrim(rtrim(number_format($rate, 2, '.', ''), '0'), '.');
+        $halfLabel = rtrim(rtrim(number_format($rate / 2, 2, '.', ''), '0'), '.');
+        $sellerState = $seller ? substr($seller, 0, 2) : $tax->homeState();
         $supplyState = $buyer ? substr($buyer, 0, 2) : $sellerState;
         $interState = $sellerState && $supplyState && $sellerState !== $supplyState;
 
         $lines = [];
         if ($taxAmount > 0) {
             if ($interState) {
-                $lines[] = ['label' => 'IGST (18%)', 'amount' => round($taxAmount, 2)];
+                $lines[] = ['label' => "IGST ({$rateLabel}%)", 'amount' => round($taxAmount, 2)];
             } else {
                 $half = round($taxAmount / 2, 2);
-                $lines[] = ['label' => 'CGST (9%)', 'amount' => $half];
-                $lines[] = ['label' => 'SGST (9%)', 'amount' => round($taxAmount - $half, 2)];
+                $lines[] = ['label' => "CGST ({$halfLabel}%)", 'amount' => $half];
+                $lines[] = ['label' => "SGST ({$halfLabel}%)", 'amount' => round($taxAmount - $half, 2)];
             }
         }
 
@@ -68,7 +72,7 @@ class GstService
             'seller_gstin' => $seller,
             'buyer_gstin' => $buyer,
             'place_of_supply' => $supplyState ? $supplyState.' - '.(self::STATES[$supplyState] ?? 'India') : null,
-            'sac' => self::SAC[$module] ?? '998559',
+            'sac' => $tax->sac($module),
             'inter_state' => (bool) $interState,
             'lines' => $lines,
         ];

@@ -430,7 +430,7 @@ class FlightBookingController extends Controller
         if ($response->getStatusCode() === 201) {
             $payload = $response->getData(true);
             $payload['user'] = (new UserResource($user))->toArray($request);
-            $payload['token'] = $user->createToken('api')->plainTextToken;
+            $payload['token'] = $user->issueApiToken();
             $payload['guest_checkout'] = true;
 
             return response()->json($payload, 201);

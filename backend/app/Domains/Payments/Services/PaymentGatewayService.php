@@ -87,20 +87,100 @@ class PaymentGatewayService
      */
     public function settle(PaymentTransaction $transaction, Tenant $tenant, string $method, ?string $chargeCurrency = null): PaymentTransaction
     {
-        // The customer pays in their own currency (sent as `currency` on
-        // every /pay call); the booking stays priced in INR.
+        $gateway = $transaction->gateway_order_id && $transaction->gateway
+            ? $transaction->gateway
+            : $this->resolveGatewayForMethod($tenant, $method);
+        $client = app(GatewayClient::class);
+        $config = $client->configFor($gateway, $tenant);
+
+        if ($config) {
+            // A real gateway is connected for this method: only mark the
+            // payment done once the gateway confirms the money arrived.
+            // (The browser opens checkout first via /payments/checkout.)
+            if (! $transaction->gateway_order_id) {
+                throw new \App\Domains\Payments\Exceptions\PaymentNotVerifiedException('Please complete the payment on the payment page first.');
+            }
+            $paymentId = $client->verify($config, $transaction, request()->all());
+            $transaction->update([
+                'status' => PaymentTransaction::STATUS_SUCCESS,
+                'method' => $method,
+                'gateway' => $gateway,
+                'gateway_payment_id' => $paymentId,
+                'is_live' => $client->isLive($config),
+            ]);
+
+            return $transaction;
+        }
+
+        // No gateway keys entered yet (demo): simulated success.
         $charge = app(CurrencyService::class)->chargeFor((string) $transaction->amount, $chargeCurrency ?? request()->input('currency'));
 
         $transaction->update([
             'status' => PaymentTransaction::STATUS_SUCCESS,
             'method' => $method,
-            'gateway' => $this->resolveGatewayForMethod($tenant, $method),
+            'gateway' => $gateway,
             'charge_currency' => $charge['currency'],
             'charge_amount' => $charge['amount'],
             'fx_rate' => $charge['rate'],
         ]);
 
         return $transaction;
+    }
+
+    /**
+     * Opens the gateway's payment page for a pending transaction. Returns
+     * ['mode' => 'simulated'] when no real gateway is connected for the
+     * chosen method, so the demo keeps working.
+     */
+    public function checkout(Booking $booking, PaymentTransaction $transaction, string $method, ?string $currency, array $context): array
+    {
+        $tenant = $booking->tenant;
+        $gateway = $this->resolveGatewayForMethod($tenant, $method);
+        $client = app(GatewayClient::class);
+        $config = $client->configFor($gateway, $tenant);
+        if (! $config) {
+            return ['mode' => 'simulated', 'gateway' => $gateway];
+        }
+
+        $charge = app(CurrencyService::class)->chargeFor((string) $transaction->amount, $currency);
+        // Razorpay India accounts take INR unless international payments
+        // are enabled; Stripe takes the customer's currency.
+        $transaction->update([
+            'gateway' => $gateway,
+            'method' => $method,
+            'charge_currency' => $charge['currency'],
+            'charge_amount' => $charge['amount'],
+            'fx_rate' => $charge['rate'],
+            'is_live' => $client->isLive($config),
+        ]);
+
+        $result = $client->openCheckout($config, $transaction->fresh(), $context);
+        $transaction->update(['gateway_order_id' => $result['order_id']]);
+
+        return $result + ['gateway' => $gateway, 'live' => $client->isLive($config)];
+    }
+
+    /**
+     * Sends a refund back to the card/UPI the customer paid with, when the
+     * booking was paid through a connected gateway. Returns the gateway's
+     * refund id, or null when there's nothing to refund automatically.
+     */
+    public function refundToSource(Booking $booking, float $amount): ?string
+    {
+        $txn = PaymentTransaction::withoutTenantScope()->where('booking_id', $booking->id)
+            ->where('status', PaymentTransaction::STATUS_SUCCESS)->whereNotNull('gateway_payment_id')->latest('id')->first();
+        if (! $txn || ! $txn->gateway) {
+            return null;
+        }
+        $client = app(GatewayClient::class);
+        $config = $client->configFor($txn->gateway, $booking->tenant);
+        if (! $config) {
+            return null;
+        }
+        // Only the card/UPI part; any wallet part is refunded separately.
+        $amount = min($amount, (float) $txn->amount);
+
+        return $client->refund($config, $txn, $amount);
     }
 
     /**

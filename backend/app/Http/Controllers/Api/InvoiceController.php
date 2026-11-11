@@ -95,7 +95,9 @@ class InvoiceController extends Controller
         // an agent/partner) might see, not specific to the e-ticket.
         $baseFare = (float) $bookingModel->supplier_net_amount;
         $markup = (float) $bookingModel->markup_amount;
-        $serviceFee = $markup > 0 ? round($markup / 1.18, 2) : 0.0;
+        $taxService = app(\App\Domains\Settings\Services\TaxService::class);
+        $gstRate = $taxService->gstRate($bookingModel->module);
+        $serviceFee = $markup > 0 ? round($markup / (1 + $gstRate / 100), 2) : 0.0;
         $gst = $markup > 0 ? round($markup - $serviceFee, 2) : 0.0;
         $extras = (float) $bookingModel->extras_amount;
         $discount = (float) $bookingModel->discount_amount;
@@ -121,11 +123,38 @@ class InvoiceController extends Controller
         if ($discount > 0) {
             $lineItems[] = ['label' => 'Discount', 'amount' => -$discount];
         }
+        $tcsAmount = (float) ($bookingModel->metadata['tcs_amount'] ?? 0);
+        if ($tcsAmount > 0) {
+            $lineItems[] = ['label' => 'TCS u/s 206C(1G) ('.($bookingModel->metadata['tcs_rate'] ?? '').'%)'.(! empty($bookingModel->metadata['tcs_pan']) ? ' · PAN '.$bookingModel->metadata['tcs_pan'] : ''), 'amount' => $tcsAmount];
+        }
+
+        // The invoice number comes from the GST series (one unbroken run
+        // per financial year), issued the first time it's needed.
+        $document = $taxService->invoiceFor($bookingModel, \Carbon\Carbon::parse($ticketedAt));
+        $creditNote = null;
+        if ($request->query('document') === 'credit_note') {
+            $creditNote = \App\Domains\Settings\Models\InvoiceDocument::query()
+                ->where('original_invoice_id', $document->id)
+                ->when($request->query('number'), fn ($q, $n) => $q->where('number', $n))
+                ->latest('id')->first();
+            abort_if(! $creditNote, 404, 'No credit note has been issued for this booking.');
+            $cnTax = (float) $creditNote->tax_amount;
+            $cnTcs = (float) $creditNote->tcs_amount;
+            $lineItems = [['label' => 'Value credited'.(! empty($creditNote->details['reason']) ? ' ('.$creditNote->details['reason'].')' : ''), 'amount' => round((float) $creditNote->amount - $cnTax - $cnTcs, 2)]];
+            foreach (app(\App\Domains\Booking\Services\GstService::class)->breakdown($bookingModel->module, $cnTax, $sellerReg, $billTo['registration_no'] ?? null)['lines'] as $line) {
+                $lineItems[] = $line;
+            }
+            if ($cnTcs > 0) {
+                $lineItems[] = ['label' => 'TCS reversed', 'amount' => $cnTcs];
+            }
+        }
 
         $pdf = Pdf::loadView('pdf.invoice', [
             'booking' => $bookingModel,
-            'invoiceNumber' => 'INV-'.str_pad((string) $bookingModel->id, 6, '0', STR_PAD_LEFT),
-            'invoiceDate' => $ticketedAt->format('d M Y'),
+            'invoiceNumber' => $creditNote ? $creditNote->number : $document->number,
+            'invoiceDate' => ($creditNote ? $creditNote->issued_at : $document->issued_at)->format('d M Y'),
+            'creditNote' => $creditNote,
+            'originalInvoiceNumber' => $document->number,
             'brandName' => $issuingTenant?->legal_name ?? $issuingTenant?->name ?? 'FyndMyTrip',
             'logo' => PdfBranding::resolveLogo($issuingTenant),
             'tenant' => $issuingTenant,
@@ -138,7 +167,7 @@ class InvoiceController extends Controller
             'billToLabel' => $billToLabel,
             'gst' => $gstDetails,
             'lineItems' => $lineItems,
-            'total' => (float) $bookingModel->total_amount,
+            'total' => $creditNote ? (float) $creditNote->amount : (float) $bookingModel->total_amount,
             // Paid by card in the customer's own currency: show what was charged.
             'foreignCharge' => \App\Domains\Payments\Models\PaymentTransaction::query()
                 ->where('booking_id', $bookingModel->id)->where('status', 'success')
@@ -146,7 +175,7 @@ class InvoiceController extends Controller
                 ->latest('id')->first(),
         ])->setPaper('a4');
 
-        $filename = ($bookingModel->booking_code ?? $bookingModel->booking_reference).'-invoice.pdf';
+        $filename = ($bookingModel->booking_code ?? $bookingModel->booking_reference).($creditNote ? '-credit-note.pdf' : '-invoice.pdf');
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
     }

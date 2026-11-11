@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -58,7 +59,7 @@ class AuthController extends Controller
             'owner_id' => $user->id,
         ]);
 
-        $token = $user->createToken('api')->plainTextToken;
+        $token = $user->issueApiToken();
 
         return response()->json([
             'user' => new UserResource($user),
@@ -72,7 +73,25 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
             'tenant_uuid' => ['nullable', 'uuid'],
+            'two_factor_code' => ['nullable', 'string', 'max:20'],
         ]);
+
+        // Lock the email (from this address) out for a while after too
+        // many wrong passwords or codes. Limits are set in admin
+        // (Security settings).
+        $security = app(\App\Domains\Settings\Services\SettingsService::class)->get('security');
+        $maxAttempts = max(1, (int) $security['login_max_attempts']);
+        $lockSeconds = max(1, (int) $security['login_lockout_minutes']) * 60;
+        $throttleKey = 'login:'.Str::lower($data['email']).'|'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
+            $minutes = (int) ceil(RateLimiter::availableIn($throttleKey) / 60);
+
+            return response()->json([
+                'message' => "Too many sign-in attempts. Please try again in {$minutes} minute(s).",
+                'errors' => ['email' => ["Too many sign-in attempts. Please try again in {$minutes} minute(s)."]],
+            ], 429);
+        }
 
         $usersQuery = User::query()->where('email', $data['email']);
 
@@ -85,6 +104,7 @@ class AuthController extends Controller
         $user = $usersQuery->first();
 
         if (! $user || ! $user->password_hash || ! Hash::check($data['password'], $user->password_hash)) {
+            RateLimiter::hit($throttleKey, $lockSeconds);
             throw ValidationException::withMessages([
                 'email' => ['These credentials do not match our records.'],
             ]);
@@ -96,13 +116,38 @@ class AuthController extends Controller
             ]);
         }
 
+        $twoFactor = app(\App\Domains\Auth\Services\TwoFactorService::class);
+        if ($twoFactor->isEnabled($user)) {
+            if (empty($data['two_factor_code'])) {
+                return response()->json([
+                    'message' => 'Enter the 6-digit code from your authenticator app.',
+                    'two_factor_required' => true,
+                    'errors' => ['two_factor_code' => ['Enter the 6-digit code from your authenticator app.']],
+                ], 422);
+            }
+            if (! $twoFactor->attempt($user, $data['two_factor_code'])) {
+                RateLimiter::hit($throttleKey, $lockSeconds);
+
+                return response()->json([
+                    'message' => 'That code is not valid. Check the time on your phone and try again.',
+                    'two_factor_required' => true,
+                    'errors' => ['two_factor_code' => ['That code is not valid.']],
+                ], 422);
+            }
+        }
+
+        RateLimiter::clear($throttleKey);
         $user->forceFill(['last_login_at' => now()])->save();
 
-        $token = $user->createToken('api')->plainTextToken;
+        $token = $user->issueApiToken();
 
         return response()->json([
             'user' => new UserResource($user),
             'token' => $token,
+            // Admin requires 2FA for this role and it isn't set up yet:
+            // the portal sends the user to the security page.
+            'two_factor_setup_required' => ! $twoFactor->isEnabled($user)
+                && in_array($user->role, (array) $security['require_2fa_roles'], true),
         ]);
     }
 
@@ -159,6 +204,9 @@ class AuthController extends Controller
         }
 
         $user->forceFill(['password_hash' => Hash::make($data['password'])])->save();
+        // Sign out every other device that was using the old password.
+        $current = $user->currentAccessToken();
+        $user->tokens()->when($current && isset($current->id), fn ($q) => $q->where('id', '!=', $current->id))->delete();
 
         return response()->json(['message' => 'Password updated.']);
     }
@@ -251,6 +299,7 @@ class AuthController extends Controller
 
         $user = User::query()->where('tenant_id', $tenant->id)->where('email', $data['email'])->firstOrFail();
         $user->forceFill(['password_hash' => Hash::make($data['password'])])->save();
+        $user->tokens()->delete();
 
         DB::table('password_reset_tokens')->where('tenant_id', $tenant->id)->where('email', $data['email'])->delete();
 
