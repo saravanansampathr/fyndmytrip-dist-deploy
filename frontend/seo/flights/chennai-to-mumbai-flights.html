@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e1c66" />
+
+    <!--
+      Site-wide fallback SEO tags — the very first thing a crawler, a shared
+      link preview, or a browser tab sees before the SPA has hydrated.
+      HomePage and each vertical's search page (Flights/Hotels/Buses/...)
+      override title + description per-route via useDocumentTitle once
+      mounted — see src/hooks/useDocumentTitle.ts's docblock for why this
+      exists as a real gap: every route used to inherit this same generic
+      tag, which is not how MakeMyTrip/Goibibo/Cleartrip/EaseMyTrip do it.
+    -->
+    <title>Chennai to Mumbai Flights: Book Cheap MAA to BOM Flight Tickets | FyndMyTrip</title>
+    <meta name="description" content="Compare Chennai to Mumbai flight fares across airlines and book MAA to BOM tickets online. Filter by time, stops and refundable fares, choose seats and get an instant e-ticket." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FyndMyTrip" />
+    <meta property="og:title" content="Chennai to Mumbai Flights: Book Cheap MAA to BOM Flight Tickets | FyndMyTrip" />
+    <meta property="og:description" content="Compare Chennai to Mumbai flight fares across airlines and book MAA to BOM tickets online. Filter by time, stops and refundable fares, choose seats and get an instant e-ticket." />
+    <meta property="og:image" content="https://demo.fyndmytrip.in/logo.png" />
+    <meta property="og:url" content="https://demo.fyndmytrip.in/flights/chennai-to-mumbai-flights" />
+    <link rel="canonical" href="https://demo.fyndmytrip.in/flights/chennai-to-mumbai-flights" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://demo.fyndmytrip.in/"}, {"@type": "ListItem", "position": 2, "name": "Flights", "item": "https://demo.fyndmytrip.in/flights"}, {"@type": "ListItem", "position": 3, "name": "Chennai to Mumbai flights", "item": "https://demo.fyndmytrip.in/flights/chennai-to-mumbai-flights"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Which airport do Chennai to Mumbai flights use?", "acceptedAnswer": {"@type": "Answer", "text": "Flights leave from Chennai International Airport (MAA) and arrive at Chhatrapati Shivaji Maharaj International Airport (BOM)."}}, {"@type": "Question", "name": "How do I find the cheapest Chennai to Mumbai flight?", "acceptedAnswer": {"@type": "Answer", "text": "Search your date, sort by price and look at nearby dates. Saver fares are usually the cheapest; flexible fares cost more but cost less to change."}}, {"@type": "Question", "name": "Can I cancel or change my ticket?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, as the airline's fare rules allow. Each fare shows whether it is refundable before you book, and you can cancel from My Trips."}}, {"@type": "Question", "name": "When does web check-in open?", "acceptedAnswer": {"@type": "Answer", "text": "Most airlines open web check-in 48 hours before departure. The confirmation page links to the airline check-in page."}}]}, {"@type": "WebPage", "name": "Chennai to Mumbai Flights: Book Cheap MAA to BOM Flight Tickets | FyndMyTrip", "url": "https://demo.fyndmytrip.in/flights/chennai-to-mumbai-flights", "description": "Compare Chennai to Mumbai flight fares across airlines and book MAA to BOM tickets online. Filter by time, stops and refundable fares, choose seats and get an instant e-ticket.", "inLanguage": "en"}]}</script>
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Chennai to Mumbai Flights: Book Cheap MAA to BOM Flight Tickets | FyndMyTrip" />
+    <meta name="twitter:description" content="Compare Chennai to Mumbai flight fares across airlines and book MAA to BOM tickets online. Filter by time, stops and refundable fares, choose seats and get an instant e-ticket." />
+
+    <script>
+      // Structured data (schema.org Organization + WebSite/SearchAction) so
+      // search engines can show a sitelinks search box and attribute pages
+      // to the FyndMyTrip brand. Built from window.location.origin rather
+      // than a hard-coded domain, since this same build is served from more
+      // than one hostname (demo.fyndmytrip.in today, possibly a different
+      // production domain later) — this way the markup is always correct
+      // for whichever host actually served the page, with no deploy-time
+      // config needed. The SearchAction target is a real, working URL
+      // (PackagesPage reads its `q` query param — see that page's
+      // useSearchParams initialization).
+      (function () {
+        var origin = window.location.origin
+        var ld = document.createElement('script')
+        ld.type = 'application/ld+json'
+        ld.text = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            { '@type': 'Organization', name: 'FyndMyTrip', url: origin, logo: origin + '/logo.png' },
+            {
+              '@type': 'WebSite',
+              name: 'FyndMyTrip',
+              url: origin,
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: origin + '/packages?q={search_term_string}',
+                'query-input': 'required name=search_term_string',
+              },
+            },
+          ],
+        })
+        document.head.appendChild(ld)
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-dcf42389.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-FKMQ4pEu.css">
+      <link rel="stylesheet" href="/assets/fmt-ux-1768a58a.css">
+  </head>
+  <body>
+    <div id="root">
+<div class="fmt-pre" data-fmt-prerender>
+<header><a href="/">FyndMyTrip</a> <nav aria-label="Services">
+<a href="/flights">Flights</a>
+<a href="/hotels">Hotels</a>
+<a href="/buses">Bus tickets</a>
+<a href="/cabs">Cabs</a>
+<a href="/packages">Holiday packages</a>
+<a href="/cruises">Cruises</a>
+<a href="/activities">Activities</a>
+<a href="/insurance">Travel insurance</a>
+<a href="/visa">Visa</a>
+<a href="/partners">For travel agents (B2B)</a>
+</nav></header><main>
+<nav aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/flights">Flights</a> › <span>Chennai to Mumbai flights</span></nav>
+<h1>Chennai to Mumbai flights</h1>
+<p>Flights from Chennai (Chennai International Airport, MAA) to Mumbai (Chhatrapati Shivaji Maharaj International Airport, BOM). Search live fares for your date to see every available flight, then filter by departure time, stops, airline and refundable fares.</p>
+<p>Domestic flyers need a government photo ID such as Aadhaar, passport, driving licence or voter ID at the airport.</p>
+<section><h2>Frequently asked questions</h2>
+<h3>Which airport do Chennai to Mumbai flights use?</h3><p>Flights leave from Chennai International Airport (MAA) and arrive at Chhatrapati Shivaji Maharaj International Airport (BOM).</p>
+<h3>How do I find the cheapest Chennai to Mumbai flight?</h3><p>Search your date, sort by price and look at nearby dates. Saver fares are usually the cheapest; flexible fares cost more but cost less to change.</p>
+<h3>Can I cancel or change my ticket?</h3><p>Yes, as the airline&#x27;s fare rules allow. Each fare shows whether it is refundable before you book, and you can cancel from My Trips.</p>
+<h3>When does web check-in open?</h3><p>Most airlines open web check-in 48 hours before departure. The confirmation page links to the airline check-in page.</p>
+</section>
+<section><h2>Popular routes</h2><ul><li><a href="/flights/delhi-to-mumbai-flights">Delhi to Mumbai flights</a></li><li><a href="/flights/mumbai-to-bengaluru-flights">Mumbai to Bengaluru flights</a></li><li><a href="/flights/chennai-to-bengaluru-flights">Chennai to Bengaluru flights</a></li><li><a href="/flights/delhi-to-goa-flights">Delhi to Goa flights</a></li><li><a href="/flights/bengaluru-to-hyderabad-flights">Bengaluru to Hyderabad flights</a></li><li><a href="/flights/kolkata-to-delhi-flights">Kolkata to Delhi flights</a></li><li><a href="/flights/mumbai-to-dubai-flights">Mumbai to Dubai flights</a></li><li><a href="/flights/delhi-to-dubai-flights">Delhi to Dubai flights</a></li><li><a href="/flights/delhi-to-singapore-flights">Delhi to Singapore flights</a></li><li><a href="/flights/mumbai-to-london-flights">Mumbai to London flights</a></li><li><a href="/flights/mumbai-to-delhi-flights">Mumbai to Delhi flights</a></li><li><a href="/flights/delhi-to-bengaluru-flights">Delhi to Bengaluru flights</a></li></ul></section>
+</main><footer><a href="/about-us">About us</a> · <a href="/contact-us">Contact us</a> · <a href="/partners">Partner with us</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms &amp; conditions</a> · <a href="/cancellation-policy">Cancellation policy</a></footer></div>
+</div>
+  </body>
+</html>

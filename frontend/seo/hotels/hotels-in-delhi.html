@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e1c66" />
+
+    <!--
+      Site-wide fallback SEO tags — the very first thing a crawler, a shared
+      link preview, or a browser tab sees before the SPA has hydrated.
+      HomePage and each vertical's search page (Flights/Hotels/Buses/...)
+      override title + description per-route via useDocumentTitle once
+      mounted — see src/hooks/useDocumentTitle.ts's docblock for why this
+      exists as a real gap: every route used to inherit this same generic
+      tag, which is not how MakeMyTrip/Goibibo/Cleartrip/EaseMyTrip do it.
+    -->
+    <title>Hotels in Delhi: Book Best Hotels &amp; Resorts in Delhi | FyndMyTrip</title>
+    <meta name="description" content="Compare and book hotels in Delhi, from budget stays to luxury resorts. See room options, free cancellation choices and the total price for your dates." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FyndMyTrip" />
+    <meta property="og:title" content="Hotels in Delhi: Book Best Hotels &amp; Resorts in Delhi | FyndMyTrip" />
+    <meta property="og:description" content="Compare and book hotels in Delhi, from budget stays to luxury resorts. See room options, free cancellation choices and the total price for your dates." />
+    <meta property="og:image" content="https://demo.fyndmytrip.in/logo.png" />
+    <meta property="og:url" content="https://demo.fyndmytrip.in/hotels/hotels-in-delhi" />
+    <link rel="canonical" href="https://demo.fyndmytrip.in/hotels/hotels-in-delhi" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://demo.fyndmytrip.in/"}, {"@type": "ListItem", "position": 2, "name": "Hotels", "item": "https://demo.fyndmytrip.in/hotels"}, {"@type": "ListItem", "position": 3, "name": "Hotels in Delhi", "item": "https://demo.fyndmytrip.in/hotels/hotels-in-delhi"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How do I find a good hotel in Delhi?", "acceptedAnswer": {"@type": "Answer", "text": "Search your dates, then sort by price and use the filters for star rating and free cancellation."}}, {"@type": "Question", "name": "What are the check-in and check-out times?", "acceptedAnswer": {"@type": "Answer", "text": "Most hotels check in from 2 PM and check out by 12 noon. The exact times for your hotel are on your voucher."}}, {"@type": "Question", "name": "Can I cancel?", "acceptedAnswer": {"@type": "Answer", "text": "Rooms marked free cancellation can be cancelled from My Trips until the deadline shown on the room."}}]}, {"@type": "WebPage", "name": "Hotels in Delhi: Book Best Hotels & Resorts in Delhi | FyndMyTrip", "url": "https://demo.fyndmytrip.in/hotels/hotels-in-delhi", "description": "Compare and book hotels in Delhi, from budget stays to luxury resorts. See room options, free cancellation choices and the total price for your dates.", "inLanguage": "en"}]}</script>
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Hotels in Delhi: Book Best Hotels &amp; Resorts in Delhi | FyndMyTrip" />
+    <meta name="twitter:description" content="Compare and book hotels in Delhi, from budget stays to luxury resorts. See room options, free cancellation choices and the total price for your dates." />
+
+    <script>
+      // Structured data (schema.org Organization + WebSite/SearchAction) so
+      // search engines can show a sitelinks search box and attribute pages
+      // to the FyndMyTrip brand. Built from window.location.origin rather
+      // than a hard-coded domain, since this same build is served from more
+      // than one hostname (demo.fyndmytrip.in today, possibly a different
+      // production domain later) — this way the markup is always correct
+      // for whichever host actually served the page, with no deploy-time
+      // config needed. The SearchAction target is a real, working URL
+      // (PackagesPage reads its `q` query param — see that page's
+      // useSearchParams initialization).
+      (function () {
+        var origin = window.location.origin
+        var ld = document.createElement('script')
+        ld.type = 'application/ld+json'
+        ld.text = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            { '@type': 'Organization', name: 'FyndMyTrip', url: origin, logo: origin + '/logo.png' },
+            {
+              '@type': 'WebSite',
+              name: 'FyndMyTrip',
+              url: origin,
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: origin + '/packages?q={search_term_string}',
+                'query-input': 'required name=search_term_string',
+              },
+            },
+          ],
+        })
+        document.head.appendChild(ld)
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-dcf42389.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-FKMQ4pEu.css">
+      <link rel="stylesheet" href="/assets/fmt-ux-1768a58a.css">
+  </head>
+  <body>
+    <div id="root">
+<div class="fmt-pre" data-fmt-prerender>
+<header><a href="/">FyndMyTrip</a> <nav aria-label="Services">
+<a href="/flights">Flights</a>
+<a href="/hotels">Hotels</a>
+<a href="/buses">Bus tickets</a>
+<a href="/cabs">Cabs</a>
+<a href="/packages">Holiday packages</a>
+<a href="/cruises">Cruises</a>
+<a href="/activities">Activities</a>
+<a href="/insurance">Travel insurance</a>
+<a href="/visa">Visa</a>
+<a href="/partners">For travel agents (B2B)</a>
+</nav></header><main>
+<nav aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/hotels">Hotels</a> › <span>Hotels in Delhi</span></nav>
+<h1>Hotels in Delhi</h1>
+<p>Find hotels and resorts in Delhi. Filter by price, star rating and free cancellation, and see exactly what each room includes before you book.</p>
+<section><h2>Frequently asked questions</h2>
+<h3>How do I find a good hotel in Delhi?</h3><p>Search your dates, then sort by price and use the filters for star rating and free cancellation.</p>
+<h3>What are the check-in and check-out times?</h3><p>Most hotels check in from 2 PM and check out by 12 noon. The exact times for your hotel are on your voucher.</p>
+<h3>Can I cancel?</h3><p>Rooms marked free cancellation can be cancelled from My Trips until the deadline shown on the room.</p>
+</section>
+<section><h2>Hotels by city</h2><ul><li><a href="/hotels/hotels-in-goa">Hotels in Goa</a></li><li><a href="/hotels/hotels-in-jaipur">Hotels in Jaipur</a></li><li><a href="/hotels/hotels-in-manali">Hotels in Manali</a></li><li><a href="/hotels/hotels-in-kochi">Hotels in Kochi</a></li><li><a href="/hotels/hotels-in-udaipur">Hotels in Udaipur</a></li><li><a href="/hotels/hotels-in-shimla">Hotels in Shimla</a></li><li><a href="/hotels/hotels-in-chennai">Hotels in Chennai</a></li><li><a href="/hotels/hotels-in-bengaluru">Hotels in Bengaluru</a></li><li><a href="/hotels/hotels-in-mumbai">Hotels in Mumbai</a></li><li><a href="/hotels/hotels-in-ooty">Hotels in Ooty</a></li><li><a href="/hotels/hotels-in-munnar">Hotels in Munnar</a></li><li><a href="/hotels/hotels-in-pondicherry">Hotels in Pondicherry</a></li></ul></section>
+</main><footer><a href="/about-us">About us</a> · <a href="/contact-us">Contact us</a> · <a href="/partners">Partner with us</a> · <a href="/privacy-policy">Privacy policy</a> · <a href="/terms-and-conditions">Terms &amp; conditions</a> · <a href="/cancellation-policy">Cancellation policy</a></footer></div>
+</div>
+  </body>
+</html>

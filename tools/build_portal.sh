@@ -13,6 +13,11 @@ python3 "$ROOT/tools/guest-checkout-patch/patch_guest_checkout.py" "$TMP/out"
 if [ -f "$ROOT/tools/fare-display-patch/patch_fare_display.py" ]; then
   python3 "$ROOT/tools/fare-display-patch/patch_fare_display.py" "$TMP/out"
 fi
+# Booking flow upgrade (confirmation, trust, mobile pay bar, landing pages,
+# B2B page), then the pre-rendered SEO pages, sitemap, robots.txt, .htaccess.
+python3 "$ROOT/tools/booking-ux/patch_booking_ux.py" "$TMP/out"
+python3 "$ROOT/tools/seo/build_seo.py" "$TMP/out" "${SITE_URL:-https://demo.fyndmytrip.in}"
+node --check "$TMP/out/assets/"index-*.js
 rm -rf "$ROOT/frontend"
 cp -a "$TMP/out" "$ROOT/frontend"
 echo "frontend/ rebuilt: $(ls "$ROOT/frontend/assets" | grep '^index-.*\.js$')"

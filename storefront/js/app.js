@@ -8,6 +8,7 @@ import { byId } from './templates.js';
 import { SERVICES } from './services.js';
 import { header, footer } from './chrome.js';
 import * as pages from './pages.js';
+import { pageSeo } from './ota.js';
 
 const ctx = { t: null, brand: { name: 'FyndMyTrip' }, svc: 'flight', query: {}, id: null };
 
@@ -40,6 +41,7 @@ async function route() {
   document.documentElement.dataset.page = page || 'home';
   renderChrome();
   window.scrollTo(0, 0);
+  pageSeo(page || 'home', SERVICES[ctx.svc], ctx.brand.name);
   const handler = { '': pages.home, results: pages.results, details: pages.details, travellers: pages.travellers, payment: pages.payment, done: pages.done, login: pages.login, templates: pages.gallery }[page] || pages.home;
   try { await handler(main, ctx); } catch (e) { console.error(e); toast(e.message || 'Something went wrong'); }
   main.focus({ preventScroll: true });
