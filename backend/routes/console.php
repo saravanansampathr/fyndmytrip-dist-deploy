@@ -30,3 +30,7 @@ Schedule::command(\App\Console\Commands\TicketingDeadlineAlerts::class)->hourly(
 Schedule::call(fn () => app(\App\Domains\Webhooks\Services\WebhookDispatcher::class)->retryDue())
     ->everyMinute()->name('webhooks-retry')->withoutOverlapping();
 Schedule::command(\App\Console\Commands\KycExpiryReminders::class)->dailyAt('09:00')->withoutOverlapping();
+
+// Phase 3 jobs (same single cron entry).
+Schedule::command(\App\Console\Commands\CheckFareAlerts::class)->everySixHours()->withoutOverlapping();
+Schedule::call(fn () => app(\App\Domains\Loyalty\Services\LoyaltyService::class)->expire())->dailyAt('03:00')->name('loyalty-expire')->withoutOverlapping();

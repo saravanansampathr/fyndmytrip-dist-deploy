@@ -29,6 +29,19 @@ class BookingLifecycle
             Log::error("Invoice/credit note for booking {$booking->id} failed: ".$e->getMessage());
         }
 
+        // Loyalty points: earned when the trip is booked for good, taken
+        // back when it is cancelled or refunded.
+        try {
+            $loyalty = app(\App\Domains\Loyalty\Services\LoyaltyService::class);
+            if ($to === Booking::STATUS_TICKETED || ($to === Booking::STATUS_CONFIRMED && in_array($booking->module, self::CONFIRM_ONLY_MODULES, true))) {
+                $loyalty->earn($booking);
+            } elseif (in_array($to, [Booking::STATUS_CANCELLED, Booking::STATUS_REFUNDED], true)) {
+                $loyalty->reverse($booking);
+            }
+        } catch (Throwable $e) {
+            Log::warning("Loyalty points for booking {$booking->id} failed: ".$e->getMessage());
+        }
+
         if (in_array($to, [Booking::STATUS_CONFIRMED, Booking::STATUS_TICKETED], true)) {
             try {
                 app(\App\Domains\Reporting\Services\FraudService::class)->assess($booking);

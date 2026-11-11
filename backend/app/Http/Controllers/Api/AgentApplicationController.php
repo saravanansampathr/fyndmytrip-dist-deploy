@@ -70,7 +70,7 @@ class AgentApplicationController extends Controller
         });
 
         try {
-            app(NotificationService::class)->alertStaff('staff_booking_attention', [
+            app(NotificationService::class)->alertStaff('staff_alert', [
                 'booking_code' => 'Agent sign-up', 'reason' => "New agent application from {$app->company_name} ({$app->email}). Review it in Admin settings → Agent sign-ups.",
             ]);
         } catch (\Throwable) {

@@ -110,6 +110,8 @@ class WhiteLabelController extends Controller
                 'support_email' => $tenant?->support_email ?: null,
                 'support_phone' => $tenant?->support_phone ?: null,
                 'business_address' => $tenant?->business_address ?: null,
+                // Analytics / ads tag IDs (validated IDs only, never code).
+                'tracking' => (object) \App\Http\Controllers\Api\MarketingTagsController::forSite($tenant),
                 'template_id' => $template['id'],
                 'homepage_hero' => $template['homepage_hero'],
                 'homepage_flow' => $template['homepage_flow'],

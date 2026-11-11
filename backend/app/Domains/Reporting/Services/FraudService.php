@@ -101,7 +101,7 @@ class FraudService
         ]);
         try {
             $notify = app(NotificationService::class);
-            $notify->alertStaff('staff_booking_attention', $notify->bookingVars($booking, [
+            $notify->alertStaff('staff_alert', $notify->bookingVars($booking, [
                 'reason' => 'Possible fraud (score '.$r['score'].'): '.implode('; ', $r['reasons']).'. Check it in Admin settings → Fraud checks before travel.',
             ]), $booking->id);
         } catch (\Throwable) {

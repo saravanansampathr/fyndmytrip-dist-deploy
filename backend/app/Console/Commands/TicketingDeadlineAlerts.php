@@ -32,7 +32,7 @@ class TicketingDeadlineAlerts extends Command
                 if (! empty($meta['ticketing_alerted_at'])) {
                     return;
                 }
-                $notify->alertStaff('staff_booking_attention', $notify->bookingVars($b, [
+                $notify->alertStaff('staff_alert', $notify->bookingVars($b, [
                     'reason' => 'Paid but still not ticketed, and travel is on '.$b->travel_date_start->toDateString().'. Issue it (Failed bookings → Issue by hand) or refund.',
                 ]), $b->id);
                 $meta['ticketing_alerted_at'] = now()->toIso8601String();

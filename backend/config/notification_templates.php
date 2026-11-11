@@ -23,6 +23,8 @@ return [
         'support_email' => 'Support email',
         'support_phone' => 'Support phone',
         'manage_url' => 'Link to My Trips',
+        'old_amount' => 'Fare alerts: the earlier price',
+        'unsubscribe_url' => 'Fare alerts: link to stop the alert',
     ],
 
     'events' => [
@@ -72,6 +74,22 @@ return [
             'email' => [
                 'subject' => 'Action needed: {{booking_code}} paid but not confirmed',
                 'body' => "Booking {{booking_code}} ({{service}}, {{trip}}) was paid ({{amount}}) but could not be confirmed with the supplier.\n\nReason: {{reason}}\n\nOpen Admin settings → Failed bookings to issue it by hand or refund the customer.",
+            ],
+        ],
+        'staff_alert' => [
+            'label' => 'Staff alert: something needs a look',
+            'audience' => 'staff',
+            'email' => [
+                'subject' => 'Action needed: {{booking_code}}',
+                'body' => "{{reason}}\n\nBooking / item: {{booking_code}}\nService: {{service}}\nAmount: {{amount}}",
+            ],
+        ],
+        'fare_drop' => [
+            'label' => 'Fare alert: price dropped',
+            'audience' => 'customer',
+            'email' => [
+                'subject' => 'Price drop: {{trip}} now {{amount}}',
+                'body' => "Hello {{customer_name}},\n\nGood news. The lowest fare for {{trip}} on {{travel_date}} is now {{amount}} (it was {{old_amount}}).\n\nBook now: {{manage_url}}\n\nFares change quickly. To stop these emails: {{unsubscribe_url}}\n\n{{brand_name}}",
             ],
         ],
     ],

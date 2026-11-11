@@ -187,6 +187,7 @@ Route::middleware('tenant')->group(function () {
 
     // Phase 2: banners, offers, FAQ and SEO text; public images; agent sign-up.
     Route::get('/content', [\App\Http\Controllers\Api\ContentController::class, 'index']);
+    Route::get('/fare-alerts/stop/{token}', [\App\Http\Controllers\Api\FareAlertController::class, 'stop'])->where('token', '[A-Za-z0-9]{40}');
     Route::get('/media/{id}/{name?}', [\App\Http\Controllers\Api\ContentController::class, 'media'])->whereNumber('id');
     Route::post('/agent-signup', [\App\Http\Controllers\Api\AgentApplicationController::class, 'store'])->middleware('throttle:5,1');
 
@@ -236,6 +237,14 @@ Route::middleware('tenant')->group(function () {
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Phase 3: rewards, fare alerts, marketing tags.
+        Route::get('/loyalty', [\App\Http\Controllers\Api\LoyaltyController::class, 'show']);
+        Route::post('/loyalty/redeem', [\App\Http\Controllers\Api\LoyaltyController::class, 'redeem'])->middleware('throttle:10,1');
+        Route::get('/fare-alerts', [\App\Http\Controllers\Api\FareAlertController::class, 'index']);
+        Route::post('/fare-alerts', [\App\Http\Controllers\Api\FareAlertController::class, 'store'])->middleware('throttle:20,1');
+        Route::delete('/fare-alerts/{id}', [\App\Http\Controllers\Api\FareAlertController::class, 'destroy'])->whereNumber('id');
+        Route::get('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'show']);
+        Route::put('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'update']);
         // Fraud checks and offline / imported bookings.
         Route::get('/admin/fraud-flags', [\App\Http\Controllers\Api\FraudController::class, 'index']);
         Route::put('/admin/fraud-flags/{flag}', [\App\Http\Controllers\Api\FraudController::class, 'update']);

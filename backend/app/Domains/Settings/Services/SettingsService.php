@@ -102,6 +102,26 @@ class SettingsService
             // Roles whose rights an admin has edited (the deploy seeder
             // leaves those alone).
             'roles' => ['customised' => []],
+            'loyalty' => [
+                // Customers earn points on completed bookings and turn them
+                // into wallet money. Off until the business switches it on.
+                'enabled' => false,
+                'points_per_100' => 1,
+                'point_value' => 0.25,
+                'min_redeem_points' => 200,
+                'expiry_months' => 12,
+                'referral' => [
+                    'enabled' => false,
+                    'referrer_points' => 500,
+                    'referee_points' => 250,
+                    'min_booking_amount' => 2000,
+                ],
+            ],
+            'fare_alerts' => [
+                'enabled' => true,
+                'max_per_user' => 10,
+                'min_drop_percent' => 5,
+            ],
             'fraud' => [
                 // Paid bookings are scored; at or above review_score staff
                 // are alerted and the booking appears under Fraud checks.

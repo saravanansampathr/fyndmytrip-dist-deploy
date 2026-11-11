@@ -42,7 +42,7 @@ class KycExpiryReminders extends Command
                     }
                 }
                 try {
-                    $notify->alertStaff('staff_booking_attention', ['booking_code' => 'Agent KYC', 'reason' => "{$tenant->name}: {$label} {$when}."]);
+                    $notify->alertStaff('staff_alert', ['booking_code' => 'Agent KYC', 'reason' => "{$tenant->name}: {$label} {$when}."]);
                 } catch (\Throwable) {
                 }
                 $doc->forceFill(['reminded_at' => now()])->save();

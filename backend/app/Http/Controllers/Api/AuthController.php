@@ -47,6 +47,7 @@ class AuthController extends Controller
             ],
             'password' => ['required', 'string', 'min:8'],
             'marketing_consent' => ['nullable', 'boolean'],
+            'referral_code' => ['nullable', 'string', 'max:16'],
         ]);
 
         $user = User::create([
@@ -67,7 +68,10 @@ class AuthController extends Controller
 
         // Signing up means accepting the terms shown on the form; offers
         // only with a separate, unticked-by-default opt-in (DPDP Act).
-        $user->forceFill(['terms_accepted_at' => now(), 'marketing_consent' => (bool) ($data['marketing_consent'] ?? false)])->save();
+        $referrer = ! empty($data['referral_code'])
+            ? User::query()->where('tenant_id', $tenant->id)->where('referral_code', strtoupper(trim($data['referral_code'])))->value('id')
+            : null;
+        $user->forceFill(['terms_accepted_at' => now(), 'marketing_consent' => (bool) ($data['marketing_consent'] ?? false), 'referred_by_user_id' => $referrer])->save();
         $privacy = app(\App\Domains\Privacy\Services\PrivacyService::class);
         $privacy->log($user, 'terms', true, $request);
         if ($user->marketing_consent) {

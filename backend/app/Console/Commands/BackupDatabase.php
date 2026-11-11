@@ -59,7 +59,7 @@ class BackupDatabase extends Command
             return self::SUCCESS;
         } catch (Throwable $e) {
             Cache::forever(SystemStatus::BACKUP_KEY, ['ok' => false, 'at' => now()->toIso8601String(), 'error' => $e->getMessage()]);
-            app(NotificationService::class)->alertStaff('staff_booking_attention', [
+            app(NotificationService::class)->alertStaff('staff_alert', [
                 'booking_code' => 'BACKUP', 'service' => 'System', 'trip' => 'Daily backup', 'amount' => '-',
                 'reason' => 'The daily backup failed: '.$e->getMessage(),
             ]);

@@ -36,6 +36,8 @@ class AdminSettingsController extends Controller
             'security' => $this->settings->get('security'),
             'monitoring' => $this->settings->get('monitoring'),
             'fraud' => $this->settings->get('fraud'),
+            'loyalty' => $this->settings->get('loyalty'),
+            'fare_alerts' => $this->settings->get('fare_alerts'),
             'platform' => $this->settings->get('platform'),
             'currency' => $this->settings->get('currency'),
             'options' => [
@@ -53,7 +55,7 @@ class AdminSettingsController extends Controller
     {
         $user = $request->user();
         $this->staffOnly($user);
-        abort_unless(in_array($group, ['tax', 'security', 'monitoring', 'platform', 'currency', 'fraud'], true), 404);
+        abort_unless(in_array($group, ['tax', 'security', 'monitoring', 'platform', 'currency', 'fraud', 'loyalty', 'fare_alerts'], true), 404);
 
         $rules = match ($group) {
             'tax' => [
@@ -103,6 +105,23 @@ class AdminSettingsController extends Controller
                 'fixed_rates.*' => ['nullable', 'numeric', 'min:0'],
                 'country_currency' => ['sometimes', 'array'],
                 'country_currency.*' => ['string', Rule::in(\App\Domains\Payments\Services\CurrencyService::SUPPORTED)],
+            ],
+            'loyalty' => [
+                'enabled' => ['sometimes', 'boolean'],
+                'points_per_100' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+                'point_value' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+                'min_redeem_points' => ['sometimes', 'integer', 'min:1'],
+                'expiry_months' => ['sometimes', 'integer', 'min:1', 'max:120'],
+                'referral' => ['sometimes', 'array'],
+                'referral.enabled' => ['sometimes', 'boolean'],
+                'referral.referrer_points' => ['sometimes', 'integer', 'min:0'],
+                'referral.referee_points' => ['sometimes', 'integer', 'min:0'],
+                'referral.min_booking_amount' => ['sometimes', 'numeric', 'min:0'],
+            ],
+            'fare_alerts' => [
+                'enabled' => ['sometimes', 'boolean'],
+                'max_per_user' => ['sometimes', 'integer', 'min:1', 'max:100'],
+                'min_drop_percent' => ['sometimes', 'numeric', 'min:1', 'max:90'],
             ],
             'fraud' => [
                 'enabled' => ['sometimes', 'boolean'],
