@@ -1,0 +1,75 @@
+# Builds the FyndMyTrip mobile apps from mobile/ on every change.
+#   Android: an installable APK (signed with the debug key, for testing on
+#            phones) is attached to the run as "fyndmytrip-android-apk".
+#   iOS:     a Simulator build proves the iOS app compiles. App Store / TestFlight
+#            builds need the Apple developer account (see mobile/README.md).
+name: Mobile apps
+
+on:
+  push:
+    paths: ['mobile/**', '.github/workflows/mobile-apps.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/mobile-apps.yml']
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: 'API the app talks to'
+        default: 'https://api-demo.fyndmytrip.in/api'
+
+env:
+  EXPO_PUBLIC_API_BASE: ${{ github.event.inputs.api_base || 'https://api-demo.fyndmytrip.in/api' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo export --platform web --output-dir dist-web
+
+  android:
+    needs: check
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npx expo prebuild --platform android --no-install
+      - run: ./gradlew assembleRelease --no-daemon
+        working-directory: mobile/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fyndmytrip-android-apk
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+
+  ios:
+    needs: check
+    runs-on: macos-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - run: npm ci
+      - run: npx expo prebuild --platform ios
+      - name: Build for the iOS Simulator (no signing needed)
+        working-directory: mobile/ios
+        run: |
+          set -o pipefail
+          xcodebuild -workspace FyndMyTrip.xcworkspace -scheme FyndMyTrip -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -40
+      - run: cd ios/build/Build/Products/Release-iphonesimulator && zip -qr ../../../../../FyndMyTrip-simulator.zip FyndMyTrip.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fyndmytrip-ios-simulator-app
+          path: mobile/FyndMyTrip-simulator.zip
