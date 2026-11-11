@@ -87,8 +87,6 @@ class InvoiceController extends Controller
 
         abort_if($ticketedAt === null, 404, 'No invoice is available for this booking yet.');
 
-        [$billTo, $billToLabel] = $this->resolveBillTo($bookingModel);
-
         // Same markup-folding convention as every other booking PDF — "no
         // where markup should be shows as markup, It needed to added in
         // tax alone" (FlightBookingController::ticketPdf()) — reused
@@ -107,8 +105,15 @@ class InvoiceController extends Controller
         if ($serviceFee > 0) {
             $lineItems[] = ['label' => 'Taxes & Fees', 'amount' => $serviceFee];
         }
-        if ($gst > 0) {
-            $lineItems[] = ['label' => 'GST (18%)', 'amount' => $gst];
+        $issuingTenant = $bookingModel->tenant;
+        [$billTo, $billToLabel] = $this->resolveBillTo($bookingModel);
+        $sellerReg = $issuingTenant?->business_registration_no;
+        if (! \App\Domains\Booking\Services\GstService::gstin($sellerReg)) {
+            $sellerReg = Tenant::query()->where('type', Tenant::TYPE_MASTER)->value('business_registration_no');
+        }
+        $gstDetails = app(\App\Domains\Booking\Services\GstService::class)->breakdown($bookingModel->module, $gst, $sellerReg, $billTo['registration_no'] ?? null);
+        foreach ($gstDetails['lines'] as $line) {
+            $lineItems[] = $line;
         }
         if ($extras > 0) {
             $lineItems[] = ['label' => 'Add-on Services (meals / seats / baggage)', 'amount' => $extras];
@@ -116,8 +121,6 @@ class InvoiceController extends Controller
         if ($discount > 0) {
             $lineItems[] = ['label' => 'Discount', 'amount' => -$discount];
         }
-
-        $issuingTenant = $bookingModel->tenant;
 
         $pdf = Pdf::loadView('pdf.invoice', [
             'booking' => $bookingModel,
@@ -133,6 +136,7 @@ class InvoiceController extends Controller
             'generatedAt' => now()->format('d M Y, h:i A'),
             'billTo' => $billTo,
             'billToLabel' => $billToLabel,
+            'gst' => $gstDetails,
             'lineItems' => $lineItems,
             'total' => (float) $bookingModel->total_amount,
         ])->setPaper('a4');

@@ -150,7 +150,9 @@
                         3rd Floor, No.17/A2, Daaru Complex, Gandhi Road, Alwarthirunagar, Chennai 600087<br>
                     @endif
                     Tel: {{ $tenant?->support_phone ?? '9841811880' }} · {{ $tenant?->support_email ?? 'care@fyndmytrip.com' }}
-                    @if($tenant?->business_registration_no)
+                    @if(!empty($gst['seller_gstin']))
+                        <br>GSTIN: {{ $gst['seller_gstin'] }}
+                    @elseif($tenant?->business_registration_no)
                         <br>Reg. No: {{ $tenant->business_registration_no }}
                     @endif
                 </div>
@@ -168,6 +170,10 @@
                     <div>Invoice No: <strong>{{ $invoiceNumber }}</strong></div>
                     <div>Invoice Date: <strong>{{ $invoiceDate }}</strong></div>
                     <div>Booking ID: <strong>{{ $booking->booking_code ?? $booking->booking_reference }}</strong></div>
+                    @if(!empty($gst))
+                        <div>SAC: <strong>{{ $gst['sac'] }}</strong></div>
+                        @if($gst['place_of_supply'])<div>Place of supply: <strong>{{ $gst['place_of_supply'] }}</strong></div>@endif
+                    @endif
                 </div>
             </td>
         </tr>
@@ -182,7 +188,9 @@
                     @if($billTo['address'])
                         <div>{{ $billTo['address'] }}</div>
                     @endif
-                    @if($billTo['registration_no'])
+                    @if(!empty($gst['buyer_gstin']))
+                        <div>GSTIN: {{ $gst['buyer_gstin'] }}</div>
+                    @elseif($billTo['registration_no'])
                         <div>Reg. No: {{ $billTo['registration_no'] }}</div>
                     @endif
                     @if($billTo['phone'] || $billTo['email'])

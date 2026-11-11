@@ -29,6 +29,31 @@ Frontend: upload the contents of `frontend/` to the web root with an SPA fallbac
 
 Holiday packages (`POST /packages/{slug}/bookings`) and visa applications (`POST /visa/{id}/applications`) create a held booking that the traveller pays for with `POST /holiday-bookings/{id}/confirm` or `/visa-bookings/{id}/confirm` (wallet amount) and, for any remainder, `/pay` (gateway method). Paid bookings become *confirmed* and get an invoice; the ops team then issues vouchers / processes the visa. `VisaSampleProductSeeder` adds six sample visa products.
 
+## Partner API (B2B / Connect)
+
+API partners book through `/api/partner/v1` with the credentials issued under **Tenants → API credentials** (client ID and secret, an allowed domain, the services it may use, and a per-minute rate limit).
+
+1. `POST /api/partner/v1/token` with `client_id` and `client_secret` returns a bearer token, valid for one hour.
+2. Search with `POST /{service}/search`, hold with `POST /{service}/bookings`, then pay from the partner's prepaid wallet with `POST /{service}/bookings/{id}/confirm`. Services are `flights`, `hotels`, `bus`, `cabs`, `insurance`, `cruises` and `activities`.
+3. Read bookings with `GET /bookings` and `GET /bookings/{id}`, and cancel with `GET /bookings/{id}/cancellation-quote` and `POST /bookings/{id}/cancel`.
+
+The calls act as the partner account's API user, so its margin rules, wallet and reports apply. Developer docs are at `/api/partner/v1/docs`, with OpenAPI at `/api/partner/v1/openapi.json`.
+
+## GST invoices
+
+Invoices read GSTINs from each account's **Business registration / GSTIN** field. For the seller, that's the booking's account, falling back to the platform (Master) account.
+
+Each invoice shows the GSTINs, the place of supply and the SAC code:
+
+| SAC | Bookings |
+|---|---|
+| 998551 | Transport |
+| 998552 | Hotels |
+| 998555 | Holiday packages |
+| 998559 | Everything else |
+
+The 18% GST on the service fee is split into CGST + SGST when the seller and buyer are in the same state, and charged as IGST when they're in different states. International flights require each traveller's passport number, date of birth, and a passport expiry after the travel date.
+
 ## Margin (markup) rules
 
 Managed at **Margin rules** in the portal, or `/api/markup-rules`.

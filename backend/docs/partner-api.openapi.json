@@ -1,0 +1,1153 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "FyndMyTrip Partner API",
+  "version": "1.0.0",
+  "description": "Search, book, pay and cancel flights, hotels, buses, cabs, insurance, cruises and activities. Authenticate with POST /token, then send Authorization: Bearer <access_token>. Every call is limited to your credential's requests per minute (X-RateLimit-* headers). Browser calls must come from your credential's allowed domain."
+ },
+ "servers": [
+  {
+   "url": "https://api-demo.fyndmytrip.in/api/partner/v1"
+  }
+ ],
+ "components": {
+  "securitySchemes": {
+   "bearer": {
+    "type": "http",
+    "scheme": "bearer"
+   }
+  }
+ },
+ "paths": {
+  "/token": {
+   "post": {
+    "summary": "Get an access token",
+    "description": "Exchange your client_id and client_secret for a bearer token valid for one hour.",
+    "tags": [
+     "Auth"
+    ],
+    "responses": {
+     "200": {
+      "description": "access_token, token_type, expires_in"
+     },
+     "401": {
+      "description": "Invalid credentials"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "client_id": "<client_id>",
+        "client_secret": "<client_secret>"
+       }
+      }
+     }
+    }
+   }
+  },
+  "/me": {
+   "get": {
+    "summary": "Your account",
+    "description": "Account name, enabled services, rate limit and wallet balance.",
+    "tags": [
+     "Account"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ]
+   }
+  },
+  "/flights/search": {
+   "post": {
+    "summary": "Search flights",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Flights"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "origin": "DEL",
+        "destination": "DXB",
+        "departure_date": "2026-12-20",
+        "adults": 2,
+        "children": 0,
+        "infants": 1
+       }
+      }
+     }
+    }
+   }
+  },
+  "/flights/bookings": {
+   "post": {
+    "summary": "Hold a flights booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Flights"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "legs": [
+         {
+          "supplier_code": "MOCKAIR",
+          "external_id": "<from search>",
+          "segments": [
+           "<from search>"
+          ]
+         }
+        ],
+        "travel_date": "2026-12-20",
+        "passengers": [
+         {
+          "title": "Mr",
+          "first_name": "Asha",
+          "last_name": "Rao",
+          "passenger_type": "adult",
+          "dob": "1990-01-01",
+          "document_type": "passport",
+          "document_number": "Z1234567",
+          "passport_expiry_date": "2030-01-01",
+          "passport_country": "IN"
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "/flights/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a flights booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Flights"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/hotels/search": {
+   "post": {
+    "summary": "Search hotels",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Hotels"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "city": "Dubai",
+        "check_in_date": "2026-12-20",
+        "check_out_date": "2026-12-23",
+        "rooms": 1,
+        "guests": 2
+       }
+      }
+     }
+    }
+   }
+  },
+  "/hotels/bookings": {
+   "post": {
+    "summary": "Hold a hotels booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Hotels"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "supplier_code": "<from search>",
+        "external_id": "<from search>",
+        "segment": "<offer.segments[0]>",
+        "check_in_date": "2026-12-20",
+        "check_out_date": "2026-12-23",
+        "rooms": 1,
+        "guests": [
+         {
+          "name": "Asha Rao",
+          "age": 30
+         },
+         {
+          "name": "Ravi Rao",
+          "age": 32
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "/hotels/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a hotels booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Hotels"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/bus/search": {
+   "post": {
+    "summary": "Search buses",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Buses"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/bus/bookings": {
+   "post": {
+    "summary": "Hold a buses booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Buses"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/bus/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a buses booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Buses"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/cabs/search": {
+   "post": {
+    "summary": "Search cabs",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Cabs"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/cabs/bookings": {
+   "post": {
+    "summary": "Hold a cabs booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Cabs"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/cabs/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a cabs booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Cabs"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/insurance/search": {
+   "post": {
+    "summary": "Search insurance",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Insurance"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/insurance/bookings": {
+   "post": {
+    "summary": "Hold a insurance booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Insurance"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/insurance/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a insurance booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Insurance"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/cruises/search": {
+   "post": {
+    "summary": "Search cruises",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Cruises"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/cruises/bookings": {
+   "post": {
+    "summary": "Hold a cruises booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Cruises"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/cruises/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a cruises booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Cruises"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/activities/search": {
+   "post": {
+    "summary": "Search activities",
+    "description": "Same request body as the portal search. Prices are what your account pays (gross_amount), with your margin rules applied.",
+    "tags": [
+     "Activities"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/activities/bookings": {
+   "post": {
+    "summary": "Hold a activities booking",
+    "description": "Holds an offer from search for your travellers. Returns the booking with status held and total_amount.",
+    "tags": [
+     "Activities"
+    ],
+    "responses": {
+     "201": {
+      "description": "Held booking"
+     },
+     "422": {
+      "description": "Validation error or price changed"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    }
+   }
+  },
+  "/activities/bookings/{booking}/confirm": {
+   "post": {
+    "summary": "Pay and confirm a activities booking",
+    "description": "Pays the full amount from your prepaid wallet and confirms/tickets with the supplier. 402 when the wallet balance is too low.",
+    "tags": [
+     "Activities"
+    ],
+    "responses": {
+     "200": {
+      "description": "Confirmed or ticketed booking"
+     },
+     "402": {
+      "description": "Wallet balance too low"
+     },
+     "409": {
+      "description": "Booking is not held"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {}
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/bookings": {
+   "get": {
+    "summary": "List bookings",
+    "description": "Your account's bookings, newest first. Filters: status, service, reference, per_page.",
+    "tags": [
+     "Bookings"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ]
+   }
+  },
+  "/bookings/{booking}": {
+   "get": {
+    "summary": "Get a booking",
+    "description": "Status, travellers, segments and amounts.",
+    "tags": [
+     "Bookings"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/bookings/{booking}/cancellation-quote": {
+   "get": {
+    "summary": "Cancellation quote",
+    "description": "The charge and refund if you cancel now.",
+    "tags": [
+     "Bookings"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/bookings/{booking}/cancel": {
+   "post": {
+    "summary": "Cancel a booking",
+    "description": "Cancels with the supplier and refunds the policy amount to your wallet. Unpaid holds are released free.",
+    "tags": [
+     "Bookings"
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Missing or expired token"
+     },
+     "403": {
+      "description": "Service not enabled, or origin not allowed"
+     },
+     "422": {
+      "description": "Validation error"
+     },
+     "429": {
+      "description": "Rate limit exceeded"
+     }
+    },
+    "security": [
+     {
+      "bearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object"
+       },
+       "example": {
+        "reason": "Customer request"
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "booking",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  }
+ }
+}

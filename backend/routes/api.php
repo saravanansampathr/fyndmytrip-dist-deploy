@@ -448,3 +448,32 @@ Route::middleware('tenant')->group(function () {
         Route::post('/visa-bookings/{booking}/pay', [CatalogBookingPaymentController::class, 'payGateway']);
     });
 });
+
+/*
+| Partner (B2B / Connect) API — see PartnerApiController and
+| docs/partner-api.md. Token exchange is open; everything else needs the
+| partner bearer token and is checked by AuthenticatePartnerApi.
+*/
+Route::prefix('partner/v1')->group(function () {
+    Route::post('/token', [\App\Http\Controllers\Api\PartnerApiController::class, 'token']);
+    Route::get('/openapi.json', [\App\Http\Controllers\Api\PartnerApiController::class, 'openapi']);
+    Route::get('/docs', [\App\Http\Controllers\Api\PartnerApiController::class, 'docs']);
+
+    Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
+        Route::middleware('partner.api')->group(function () {
+            Route::get('/me', [\App\Http\Controllers\Api\PartnerApiController::class, 'me']);
+            Route::get('/bookings', [\App\Http\Controllers\Api\PartnerApiController::class, 'index']);
+            Route::get('/bookings/{booking}', [\App\Http\Controllers\Api\PartnerApiController::class, 'show'])->whereNumber('booking');
+            Route::get('/bookings/{booking}/cancellation-quote', [\App\Http\Controllers\Api\PartnerApiController::class, 'cancellationQuote'])->whereNumber('booking');
+            Route::post('/bookings/{booking}/cancel', [\App\Http\Controllers\Api\PartnerApiController::class, 'cancel'])->whereNumber('booking');
+        });
+
+        foreach (\App\Http\Controllers\Api\PartnerApiController::MODULES as $service => [$module]) {
+            Route::middleware("partner.api:{$module}")->group(function () use ($service) {
+                Route::post("/{$service}/search", [\App\Http\Controllers\Api\PartnerApiController::class, 'search'])->defaults('service', $service);
+                Route::post("/{$service}/bookings", [\App\Http\Controllers\Api\PartnerApiController::class, 'hold'])->defaults('service', $service);
+                Route::post("/{$service}/bookings/{booking}/confirm", [\App\Http\Controllers\Api\PartnerApiController::class, 'confirm'])->defaults('service', $service)->whereNumber('booking');
+            });
+        }
+    });
+});

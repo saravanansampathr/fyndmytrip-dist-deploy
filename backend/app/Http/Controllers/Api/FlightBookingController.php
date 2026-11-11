@@ -475,6 +475,24 @@ class FlightBookingController extends Controller
             'passengers.*.passport_country' => ['nullable', 'string', 'size:2'],
         ]);
 
+        // International trips need each traveller's passport: number,
+        // date of birth, and an expiry after the last travel date.
+        $international = collect($data['legs'])->flatMap(fn ($leg) => $leg['segments'] ?? [])
+            ->contains(fn ($seg) => is_array($seg) && $this->routeClassificationService->isInternationalCode($seg['origin'] ?? null, $seg['destination'] ?? null));
+        if ($international) {
+            $lastDate = $data['travel_date_end'] ?? $data['travel_date'];
+            $request->validate([
+                'passengers.*.document_number' => ['required', 'string', 'min:5', 'max:20'],
+                'passengers.*.dob' => ['required', 'date', 'before:today'],
+                'passengers.*.passport_expiry_date' => ['required', 'date', 'after:'.$lastDate],
+            ], [
+                'passengers.*.document_number.required' => 'Passport number is required for international travel.',
+                'passengers.*.dob.required' => 'Date of birth is required for international travel.',
+                'passengers.*.passport_expiry_date.required' => 'Passport expiry date is required for international travel.',
+                'passengers.*.passport_expiry_date.after' => 'The passport must be valid beyond the travel date.',
+            ]);
+        }
+
         $tenant = $user->tenant;
         $role = $this->markupRoleFor($user);
 

@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => ResolveTenant::class,
             'permission' => EnsureUserHasPermission::class,
+            'partner.api' => \App\Http\Middleware\AuthenticatePartnerApi::class,
         ]);
 
         $middleware->statefulApi();
