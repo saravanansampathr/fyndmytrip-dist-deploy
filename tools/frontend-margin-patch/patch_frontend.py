@@ -87,11 +87,21 @@ assert n_notes == 7, n_notes
 # admin-edited text when one is published; and real Razorpay / Stripe
 # checkout before every booking payment.
 s = s.replace('function Use(){', open(os.path.join(HERE, 'admin_settings.src.js'), encoding='utf-8').read().strip() + '\nfunction Use(){', 1)
+# Phase 2 and 3 screens (admin_phase2.src.js): platform and currencies,
+# fraud checks, rewards, roles, change history, reports, website content,
+# agent sign-ups, analytics tags; Webhooks, Offline bookings, Corporate
+# travel and Rewards & privacy pages; and the public agent sign-up form.
+s = s.replace('function Use(){', open(os.path.join(HERE, 'admin_phase2.src.js'), encoding='utf-8').read().strip() + '\nfunction Use(){', 1)
 for old_ok, new_ok in [
     ("(0,U.jsx)(H,{path:`/platform-settings`,element:(0,U.jsx)(Soe,{})})",
-     "(0,U.jsx)(H,{path:`/platform-settings`,element:(0,U.jsx)(Soe,{})}),(0,U.jsx)(H,{path:`/admin-settings`,element:(0,U.jsx)(FmtAdminSettings,{})}),(0,U.jsx)(H,{path:`/account-security`,element:(0,U.jsx)(FmtAccountSecurity,{})})"),
+     "(0,U.jsx)(H,{path:`/platform-settings`,element:(0,U.jsx)(Soe,{})}),(0,U.jsx)(H,{path:`/admin-settings`,element:(0,U.jsx)(FmtAdminSettings,{})}),(0,U.jsx)(H,{path:`/account-security`,element:(0,U.jsx)(FmtAccountSecurity,{})}),(0,U.jsx)(H,{path:`/webhooks`,element:(0,U.jsx)(FmtWebhooksPage,{})}),(0,U.jsx)(H,{path:`/offline-bookings`,element:(0,U.jsx)(FmtOfflinePage,{})}),(0,U.jsx)(H,{path:`/corporate`,element:(0,U.jsx)(FmtCorporatePage,{})}),(0,U.jsx)(H,{path:`/my-account`,element:(0,U.jsx)(FmtMyAccountPage,{})})"),
     ("{to:`/platform-settings`,label:`Platform settings`,icon:`⚙`,roles:[`super_admin`,`staff`]}",
-     "{to:`/platform-settings`,label:`Platform settings`,icon:`⚙`,roles:[`super_admin`,`staff`]},{to:`/admin-settings`,label:`Admin settings`,icon:`🛠`,roles:[`super_admin`,`staff`,`partner_admin`]},{to:`/account-security`,label:`Login security`,icon:`🔐`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`,`staff_user`,`api_user`]}"),
+     "{to:`/platform-settings`,label:`Platform settings`,icon:`⚙`,roles:[`super_admin`,`staff`]},{to:`/admin-settings`,label:`Admin settings`,icon:`🛠`,roles:[`super_admin`,`staff`,`partner_admin`]},{to:`/account-security`,label:`Login security`,icon:`🔐`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`,`staff_user`,`api_user`]},{to:`/offline-bookings`,label:`Offline bookings`,icon:`📝`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`]},{to:`/corporate`,label:`Corporate travel`,icon:`🏢`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`,`staff_user`]},{to:`/webhooks`,label:`Webhooks`,icon:`🔗`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`api_user`]},{to:`/my-account`,label:`Rewards & privacy`,icon:`🎁`,roles:`all`}"),
+    # Public: travel agents apply for an account (with KYC documents).
+    ("(0,U.jsx)(H,{path:`/register`,element:(0,U.jsx)(Mm,{})}),",
+     "(0,U.jsx)(H,{path:`/register`,element:(0,U.jsx)(Mm,{})}),(0,U.jsx)(H,{path:`/agent-signup`,element:(0,U.jsx)(FmtAgentSignup,{})}),"),
+    ("`Create an account`})]})]})})}function Mm(){",
+     "`Create an account`}),(0,U.jsx)(`span`,{className:`block mt-2`,children:(0,U.jsx)(Mn,{to:`/agent-signup`,className:`font-medium text-brand-teal-dark hover:underline`,children:`Travel agent? Apply for a B2B account`})})]})]})})}function Mm(){"),
     # Sign-in: ask for the authenticator code when the account has 2FA on,
     # and send users who must set it up to the Login security page.
     ("async function Hf(e){let{data:t}=await K.post(`/auth/login`,e);return t}",
@@ -101,7 +111,7 @@ for old_ok, new_ok in [
     # Registered before the existing interceptor so it runs after it (axios
     # runs request interceptors last-registered first) and sees the currency.
     ("K.interceptors.request.use(e=>{try{if(String(e.method)",
-     "K.interceptors.request.use(fmtGatewayCheckout);K.interceptors.request.use(e=>{try{if(String(e.method)"),
+     "K.interceptors.request.use(fmtGatewayCheckout);K.interceptors.request.use(fmtRefInterceptor);K.interceptors.request.use(e=>{try{if(String(e.method)"),
 ]:
     assert s.count(old_ok) == 1, old_ok[:60]
     s = s.replace(old_ok, new_ok, 1)
