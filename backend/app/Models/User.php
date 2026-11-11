@@ -60,6 +60,9 @@ class User extends Authenticatable
     protected $casts = [
         'last_login_at' => 'datetime',
         'two_factor_confirmed_at' => 'datetime',
+        'terms_accepted_at' => 'datetime',
+        'erased_at' => 'datetime',
+        'marketing_consent' => 'boolean',
         'is_guest' => 'boolean',
         'permission_overrides' => 'array',
     ];

@@ -35,6 +35,7 @@ class AdminSettingsController extends Controller
             'tax' => $this->settings->get('tax'),
             'security' => $this->settings->get('security'),
             'monitoring' => $this->settings->get('monitoring'),
+            'fraud' => $this->settings->get('fraud'),
             'platform' => $this->settings->get('platform'),
             'currency' => $this->settings->get('currency'),
             'options' => [
@@ -52,7 +53,7 @@ class AdminSettingsController extends Controller
     {
         $user = $request->user();
         $this->staffOnly($user);
-        abort_unless(in_array($group, ['tax', 'security', 'monitoring', 'platform', 'currency'], true), 404);
+        abort_unless(in_array($group, ['tax', 'security', 'monitoring', 'platform', 'currency', 'fraud'], true), 404);
 
         $rules = match ($group) {
             'tax' => [
@@ -102,6 +103,17 @@ class AdminSettingsController extends Controller
                 'fixed_rates.*' => ['nullable', 'numeric', 'min:0'],
                 'country_currency' => ['sometimes', 'array'],
                 'country_currency.*' => ['string', Rule::in(\App\Domains\Payments\Services\CurrencyService::SUPPORTED)],
+            ],
+            'fraud' => [
+                'enabled' => ['sometimes', 'boolean'],
+                'review_score' => ['sometimes', 'integer', 'min:10', 'max:100'],
+                'high_value_amount' => ['sometimes', 'numeric', 'min:0'],
+                'new_account_hours' => ['sometimes', 'integer', 'min:0', 'max:720'],
+                'max_bookings_per_contact_day' => ['sometimes', 'integer', 'min:1', 'max:100'],
+                'max_failed_payments_day' => ['sometimes', 'integer', 'min:1', 'max:50'],
+                'max_bookings_per_traveller_day' => ['sometimes', 'integer', 'min:1', 'max:100'],
+                'blocked_email_domains' => ['sometimes', 'array', 'max:200'],
+                'blocked_email_domains.*' => ['string', 'max:100', 'regex:/^[a-z0-9.-]+\\.[a-z]{2,}$/i'],
             ],
             'monitoring' => [
                 'alert_emails' => ['sometimes', 'array', 'max:10'],

@@ -102,6 +102,18 @@ class SettingsService
             // Roles whose rights an admin has edited (the deploy seeder
             // leaves those alone).
             'roles' => ['customised' => []],
+            'fraud' => [
+                // Paid bookings are scored; at or above review_score staff
+                // are alerted and the booking appears under Fraud checks.
+                'enabled' => true,
+                'review_score' => 50,
+                'high_value_amount' => 100000,
+                'new_account_hours' => 24,
+                'max_bookings_per_contact_day' => 5,
+                'max_failed_payments_day' => 3,
+                'max_bookings_per_traveller_day' => 3,
+                'blocked_email_domains' => ['mailinator.com', 'guerrillamail.com', 'tempmail.com', '10minutemail.com', 'yopmail.com', 'trashmail.com'],
+            ],
             'monitoring' => [
                 // Who gets emailed about failed bookings, failed payments
                 // and backup problems.

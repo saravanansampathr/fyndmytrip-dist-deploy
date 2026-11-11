@@ -29,10 +29,20 @@ class BookingLifecycle
             Log::error("Invoice/credit note for booking {$booking->id} failed: ".$e->getMessage());
         }
 
+        if (in_array($to, [Booking::STATUS_CONFIRMED, Booking::STATUS_TICKETED], true)) {
+            try {
+                app(\App\Domains\Reporting\Services\FraudService::class)->assess($booking);
+            } catch (Throwable $e) {
+                Log::warning("Fraud check for booking {$booking->id} failed: ".$e->getMessage());
+            }
+        }
+
         $send = function () use ($booking, $from, $to, $reason) {
             $fresh = $booking->fresh(['tenant', 'createdBy']) ?? $booking;
             try {
-                $this->messages($fresh, $from, $to, $reason);
+                if (empty(($fresh->metadata ?? [])['silent'])) {
+                    $this->messages($fresh, $from, $to, $reason);
+                }
             } catch (Throwable $e) {
                 Log::warning("Booking {$booking->id} messages failed: ".$e->getMessage());
             }

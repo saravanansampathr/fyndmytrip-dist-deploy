@@ -195,6 +195,11 @@ Route::middleware('tenant')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::put('/auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');
         Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
+        // Privacy: consent, download my data, delete my account.
+        Route::get('/privacy', [\App\Http\Controllers\Api\PrivacyController::class, 'show']);
+        Route::put('/privacy/consent', [\App\Http\Controllers\Api\PrivacyController::class, 'consent']);
+        Route::get('/privacy/export', [\App\Http\Controllers\Api\PrivacyController::class, 'export'])->middleware('throttle:5,1');
+        Route::post('/privacy/delete-account', [\App\Http\Controllers\Api\PrivacyController::class, 'destroy'])->middleware('throttle:5,1');
 
         // Two-factor login for the signed-in user.
         Route::get('/auth/two-factor', [\App\Http\Controllers\Api\TwoFactorController::class, 'show']);
@@ -231,6 +236,12 @@ Route::middleware('tenant')->group(function () {
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Fraud checks and offline / imported bookings.
+        Route::get('/admin/fraud-flags', [\App\Http\Controllers\Api\FraudController::class, 'index']);
+        Route::put('/admin/fraud-flags/{flag}', [\App\Http\Controllers\Api\FraudController::class, 'update']);
+        Route::post('/offline-bookings', [\App\Http\Controllers\Api\OfflineBookingController::class, 'store'])->middleware('throttle:60,1');
+        Route::post('/offline-bookings/import', [\App\Http\Controllers\Api\OfflineBookingController::class, 'import'])->middleware('throttle:10,1');
+        Route::get('/offline-bookings/template', [\App\Http\Controllers\Api\OfflineBookingController::class, 'template']);
         // Content (banners, offers, FAQ, SEO) and agent applications.
         Route::get('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'adminIndex']);
         Route::post('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'store']);

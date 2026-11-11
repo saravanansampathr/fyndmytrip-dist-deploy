@@ -37,6 +37,7 @@ class AuditTrail
         \App\Domains\Cms\Models\ContentItem::class => 'Website content',
         \App\Domains\Kyc\Models\AgentApplication::class => 'Agent application',
         \App\Domains\Webhooks\Models\WebhookEndpoint::class => 'Webhook',
+        \App\Domains\Reporting\Models\FraudFlag::class => 'Fraud check',
     ];
 
     protected const SECRET = '/(secret|password|token|api_key|apikey|private|credential|auth_key|access_key|recovery)/i';

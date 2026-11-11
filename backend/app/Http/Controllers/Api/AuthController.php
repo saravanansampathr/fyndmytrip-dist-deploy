@@ -46,6 +46,7 @@ class AuthController extends Controller
                 Rule::unique('users')->where('tenant_id', $tenant->id),
             ],
             'password' => ['required', 'string', 'min:8'],
+            'marketing_consent' => ['nullable', 'boolean'],
         ]);
 
         $user = User::create([
@@ -63,6 +64,15 @@ class AuthController extends Controller
             'owner_type' => Wallet::OWNER_USER,
             'owner_id' => $user->id,
         ]);
+
+        // Signing up means accepting the terms shown on the form; offers
+        // only with a separate, unticked-by-default opt-in (DPDP Act).
+        $user->forceFill(['terms_accepted_at' => now(), 'marketing_consent' => (bool) ($data['marketing_consent'] ?? false)])->save();
+        $privacy = app(\App\Domains\Privacy\Services\PrivacyService::class);
+        $privacy->log($user, 'terms', true, $request);
+        if ($user->marketing_consent) {
+            $privacy->setMarketing($user, true, $request);
+        }
 
         $token = $user->issueApiToken();
 
