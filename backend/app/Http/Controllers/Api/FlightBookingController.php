@@ -1139,9 +1139,9 @@ class FlightBookingController extends Controller
      * Information terms. Kept behind auth (unlike the public holiday
      * itinerary PDF) since it carries passenger names/passport numbers.
      *
-     * ?fare=0 renders the passenger-facing copy with the Fare Details box
-     * left out entirely — "option to choose with or without fare options
-     * ticket pdf". Defaults to including it.
+     * ?fare=0 renders the copy with the Fare Details box left out entirely
+     * — only for B2B bookings downloaded by the agent side (see
+     * CustomerFare::canHideFare()). Direct customers always get the fare.
      */
     public function ticketPdf(Request $request, Booking $booking)
     {
@@ -1154,40 +1154,14 @@ class FlightBookingController extends Controller
             'tenant:id,name,legal_name,logo_url,support_email,support_phone,business_address',
         ]);
 
-        $includeFare = $request->boolean('fare', true);
+        // The fare-less copy is for B2B agents only; a direct customer (or a
+        // guest) always gets the ticket with the price, whatever they ask for.
+        $includeFare = $request->boolean('fare', true)
+            || ! \App\Support\CustomerFare::canHideFare($request->user(), $booking);
 
-        // The commission this platform keeps is never itemised as
-        // "markup" on a document a traveller may see — "no where markup
-        // should be shows as markup, It needed to added in tax alone".
-        // It's folded into the tax/fee lines instead, the same way the
-        // reference ticket folds its own OTA fee into "Management Fee" +
-        // "Management Fee GST" rather than calling it out separately. The
-        // fold assumes the fee is itself GST-inclusive at 18% purely so
-        // the printed lines read like a real invoice rather than one
-        // opaque number.
-        $priceRows = [];
-        if ($includeFare) {
-            $baseFare = (float) $booking->supplier_net_amount;
-            $markup = (float) $booking->markup_amount;
-            $serviceFee = $markup > 0 ? round($markup / 1.18, 2) : 0.0;
-            $gst = $markup > 0 ? round($markup - $serviceFee, 2) : 0.0;
-            $extras = (float) $booking->extras_amount;
-            $discount = (float) $booking->discount_amount;
-
-            $priceRows[] = ['label' => 'Base Fare', 'amount' => $baseFare];
-            if ($serviceFee > 0) {
-                $priceRows[] = ['label' => 'Taxes & Fees', 'amount' => $serviceFee];
-            }
-            if ($gst > 0) {
-                $priceRows[] = ['label' => 'GST (18%)', 'amount' => $gst];
-            }
-            if ($extras > 0) {
-                $priceRows[] = ['label' => 'Add-on Services (meals / seats / baggage)', 'amount' => $extras];
-            }
-            if ($discount > 0) {
-                $priceRows[] = ['label' => 'Discount', 'amount' => -$discount];
-            }
-        }
+        // Markup / service charge / convenience fee is never its own line:
+        // it is folded into Base Fare so the lines still add up to the total.
+        $priceRows = $includeFare ? \App\Support\CustomerFare::rows($booking, 'Base Fare') : [];
 
         $tenant = $booking->tenant;
 

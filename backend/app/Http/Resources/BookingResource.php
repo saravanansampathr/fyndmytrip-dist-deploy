@@ -30,6 +30,9 @@ class BookingResource extends JsonResource
             'supplier_booking_ref' => $this->supplier_booking_ref,
             'ticket_numbers' => $this->metadata['ticket_numbers'] ?? [],
             'status' => $this->status,
+            // B2B agents may download the e-ticket without the fare; direct
+            // customers always get it with the price.
+            'can_hide_fare' => \App\Support\CustomerFare::canHideFare($request->user(), $this->resource),
             'gross_amount' => (string) $this->gross_amount,
             // The supplier cost and the margin earned on it are never sent to
             // a traveller (customers, sub-agents, staff users) — only to

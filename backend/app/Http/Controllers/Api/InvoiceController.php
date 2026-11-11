@@ -87,25 +87,30 @@ class InvoiceController extends Controller
 
         abort_if($ticketedAt === null, 404, 'No invoice is available for this booking yet.');
 
-        // Same markup-folding convention as every other booking PDF — "no
-        // where markup should be shows as markup, It needed to added in
-        // tax alone" (FlightBookingController::ticketPdf()) — reused
-        // as-is here rather than a separate rule for invoices, since the
-        // policy is about what's ever shown on a document a traveller (or
-        // an agent/partner) might see, not specific to the e-ticket.
-        $baseFare = (float) $bookingModel->supplier_net_amount;
+        // GST is charged on the platform's service value (the markup, which
+        // is GST-inclusive). The tax lines must stay on a tax invoice, but
+        // the markup itself is never printed as a fee: for a direct (B2C)
+        // customer its taxable part is folded into Base Fare, so the
+        // invoice reads Base Fare + GST + extras = total. A B2B invoice
+        // (agent / sub-agent / white-label / API partner) keeps the taxable
+        // service value on its own line, because a registered business
+        // needs it to claim input tax credit.
         $markup = (float) $bookingModel->markup_amount;
         $taxService = app(\App\Domains\Settings\Services\TaxService::class);
         $gstRate = $taxService->gstRate($bookingModel->module);
-        $serviceFee = $markup > 0 ? round($markup / (1 + $gstRate / 100), 2) : 0.0;
-        $gst = $markup > 0 ? round($markup - $serviceFee, 2) : 0.0;
-        $extras = (float) $bookingModel->extras_amount;
-        $discount = (float) $bookingModel->discount_amount;
+        $serviceValue = $markup > 0 ? round($markup / (1 + $gstRate / 100), 2) : 0.0;
+        $gst = $markup > 0 ? round($markup - $serviceValue, 2) : 0.0;
+        $fare = \App\Support\CustomerFare::fare($bookingModel);
+        $isB2C = $bookingModel->channel === Booking::CHANNEL_DIRECT || $bookingModel->channel === null;
 
         $lineItems = [];
-        $lineItems[] = ['label' => 'Base Fare', 'amount' => $baseFare];
-        if ($serviceFee > 0) {
-            $lineItems[] = ['label' => 'Taxes & Fees', 'amount' => $serviceFee];
+        if ($isB2C) {
+            $lineItems[] = ['label' => 'Base Fare', 'amount' => round($fare - $gst, 2)];
+        } else {
+            $lineItems[] = ['label' => 'Base Fare', 'amount' => round($fare - $markup, 2)];
+            if ($serviceValue > 0) {
+                $lineItems[] = ['label' => 'Service charges (taxable value)', 'amount' => $serviceValue];
+            }
         }
         $issuingTenant = $bookingModel->tenant;
         [$billTo, $billToLabel] = $this->resolveBillTo($bookingModel);
@@ -117,15 +122,11 @@ class InvoiceController extends Controller
         foreach ($gstDetails['lines'] as $line) {
             $lineItems[] = $line;
         }
-        if ($extras > 0) {
-            $lineItems[] = ['label' => 'Add-on Services (meals / seats / baggage)', 'amount' => $extras];
-        }
-        if ($discount > 0) {
-            $lineItems[] = ['label' => 'Discount', 'amount' => -$discount];
-        }
-        $tcsAmount = (float) ($bookingModel->metadata['tcs_amount'] ?? 0);
-        if ($tcsAmount > 0) {
-            $lineItems[] = ['label' => 'TCS u/s 206C(1G) ('.($bookingModel->metadata['tcs_rate'] ?? '').'%)'.(! empty($bookingModel->metadata['tcs_pan']) ? ' · PAN '.$bookingModel->metadata['tcs_pan'] : ''), 'amount' => $tcsAmount];
+        foreach (\App\Support\CustomerFare::extraRows($bookingModel) as $row) {
+            if (str_starts_with($row['label'], 'TCS')) {
+                $row['label'] = 'TCS u/s 206C(1G) ('.($bookingModel->metadata['tcs_rate'] ?? '').'%)'.(! empty($bookingModel->metadata['tcs_pan']) ? ' · PAN '.$bookingModel->metadata['tcs_pan'] : '');
+            }
+            $lineItems[] = $row;
         }
 
         // The invoice number comes from the GST series (one unbroken run
