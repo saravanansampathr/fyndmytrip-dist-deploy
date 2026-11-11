@@ -5,6 +5,7 @@
 #   4. website bookings: every service and user type from search to payment
 #   5. admin settings, website pages and two-factor login in the browser
 #   6. storefront run: a full booking through every template in storefront/
+#   7. Phase 2/3 portal screens, and storefront banners/offers/FAQ/SEO/tags
 # Usage: e2e/run.sh            (from the repo root, after `composer install` in backend/)
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -34,3 +35,4 @@ echo "== website bookings (every service and role, search to payment)"; CACHE_ST
 echo "== admin settings, website pages and two-factor login"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/ui_admin_e2e.js"
 echo "== phase 2 and 3 screens"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/ui_phase2_e2e.js"
 echo "== storefront templates end-to-end"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/storefront_e2e.js"
+echo "== storefront banners, offers, FAQ, SEO and analytics tags"; CACHE_STORE=file "$ROOT/e2e/reset_db.sh" >/dev/null; node "$ROOT/e2e/storefront_extras_e2e.js"

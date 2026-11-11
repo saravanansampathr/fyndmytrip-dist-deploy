@@ -32,7 +32,7 @@ Frontend: upload the contents of `frontend/` to the web root with an SPA fallbac
 * * * * * cd /home/<user>/<app>/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-It reconciles gateway payments every 10 minutes, and makes the daily backup at 01:30 (database + uploads, in `storage/app/backups`). **Admin settings → Security & health** shows whether the cron job and the backup are running; `GET /api/health` is the same check for an uptime monitor.
+It reconciles gateway payments every 10 minutes, cancels unpaid holds every 5 minutes (time set in Admin settings → Platform), alerts staff hourly about paid bookings not yet ticketed close to travel, retries partner webhooks every minute, checks fare alerts every 6 hours, reminds agents about expiring KYC documents daily at 09:00, expires old loyalty points daily at 03:00, and makes the daily backup at 01:30 (database + uploads, in `storage/app/backups`). **Admin settings → Security & health** shows whether the cron job and the backup are running; `GET /api/health` is the same check for an uptime monitor.
 
 ## Admin settings (no code changes needed)
 
@@ -46,6 +46,25 @@ It reconciles gateway payments every 10 minutes, and makes the daily backup at 0
 - **Security & health:** wrong-password lock-out, how long staff and customers stay signed in, which roles must turn on two-factor login, alert emails, backup retention, and system health.
 
 Every user can turn on two-factor login (any authenticator app) under **Login security**.
+
+Phase 2 and 3 tabs in **Admin settings**:
+
+- **Platform & currencies:** maintenance mode (visitors browse but cannot book or pay), unpaid-hold expiry, ticketing alert hours, supplier error pause, search cache; which currencies visitors may pay in, exchange margin, fixed rates, and country → currency.
+- **Banners, offers & FAQ:** home banners (with image upload), offers with coupon codes, FAQ, popular routes, and the Google title/description per page. A partner's items replace the main site's on the partner's website. Shown on the storefront by `storefront/js/extras.js`.
+- **Analytics & ads:** Google Analytics 4, Tag Manager, Google Ads (with purchase conversion label) and Meta Pixel IDs per website. Only IDs are stored; the storefront loads the standard tags and reports a purchase on the confirmation page.
+- **Fraud checks:** every paid booking is scored (high value from a new account, throw-away email, many bookings or failed payments from one contact, the same traveller many times, last-minute expensive international trips). Flagged bookings are listed here and emailed to the alert list; nothing is blocked automatically.
+- **Agent sign-ups:** agents apply at `/agent-signup` with PAN, GSTIN and KYC documents (stored privately). Approve to create the agent account (optionally with document expiry dates) or reject with a reason; the applicant is emailed either way.
+- **Rewards & alerts:** loyalty points (earn rate, point value, minimum to use, expiry), refer-a-friend points, and fare drop alerts. All off by default except fare alerts.
+- **Reports:** profit (margin, GST, commission, net) by booking, agent, partner, supplier, service or month; sales; cancellations and refunds; searches to bookings; GSTR-1 (B2B, B2CS, credit notes, HSN/SAC); TCS and TDS by quarter. Every report downloads as CSV.
+- **Roles:** what each role may do (super admin only). A changed role is no longer reset by the deploy seeder; *Reset to built-in* undoes it. Extra rights for one person: `PUT /api/tenants/{tenant}/users/{user}/rights`.
+- **Change history:** who changed which rule, setting, gateway, template, page, role, user or account, with old and new values (secrets hidden).
+- **Tax & invoices** also has **TDS on agent commission** (section 194H): off until you switch it on; the agent's wallet gets the commission after TDS and the TDS report lists it per PAN. Confirm the rates with your CA.
+
+Other new pages in the portal: **Offline bookings** (enter one booking made by phone or elsewhere, or import a CSV; invoices and reports include them), **Corporate travel** (switch it on for a company account; travel policy, approvers, employees' trip requests, monthly statement with cost centres), **Webhooks** (partners and API customers get signed POSTs on booking confirmed, ticketed, cancelled, refunded and failed; HMAC-SHA256 of `timestamp.body`, header `X-FyndMyTrip-Signature: sha256=…`, retried for a day), and **Rewards & privacy** (points, referral link, fare alerts, offers consent, download my data, delete my account).
+
+Margin and commission rules can have **valid from / until** dates for seasonal pricing.
+
+The portal bundle is rebuilt from the original build plus every patch script with `bash tools/build_portal.sh`.
 
 ## Card, UPI and net-banking payments
 
