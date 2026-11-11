@@ -52,6 +52,7 @@ class HolidayPackagePdfController extends Controller
             })
             ->with(['itineraryDays', 'priceTiers', 'tenant', 'media'])
             ->firstOrFail();
+        app(HolidayPackageSearchController::class)->presentPrices($request, $package, withTiers: true);
 
         $occupancyLabels = [
             'adult_sharing' => 'Adult (sharing)',

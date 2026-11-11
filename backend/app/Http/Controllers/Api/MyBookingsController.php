@@ -39,6 +39,19 @@ class MyBookingsController extends Controller
 {
     use FiltersByDateRangePreset;
 
+    /** Where a held booking of each module is paid (…/{id}/confirm and …/{id}/pay). */
+    public const PAY_PATHS = [
+        Booking::MODULE_FLIGHT => 'flights/bookings',
+        Booking::MODULE_HOTEL => 'hotels/bookings',
+        Booking::MODULE_BUS => 'bus/bookings',
+        Booking::MODULE_CAB => 'cabs/bookings',
+        Booking::MODULE_INSURANCE => 'insurance/bookings',
+        Booking::MODULE_CRUISE => 'cruises/bookings',
+        Booking::MODULE_ACTIVITY => 'activities/bookings',
+        Booking::MODULE_HOLIDAY => 'holiday-bookings',
+        Booking::MODULE_VISA => 'visa-bookings',
+    ];
+
     public function __construct(protected TenantService $tenantService)
     {
     }
@@ -91,7 +104,7 @@ class MyBookingsController extends Controller
 
         $bookings = $query->paginate(min($request->integer('per_page', 25), 500));
 
-        $bookings->getCollection()->transform(function (Booking $booking) {
+        $bookings->getCollection()->transform(function (Booking $booking) use ($user) {
             $total = $booking->total_amount && (float) $booking->total_amount > 0
                 ? $booking->total_amount
                 : $booking->recalculateTotal();
@@ -120,6 +133,10 @@ class MyBookingsController extends Controller
                 'summary' => $this->summaryFor($booking),
                 'pdf_url' => $this->pdfUrlFor($booking),
                 'invoice_url' => $this->invoiceUrlFor($booking),
+                // My Trips actions: finish paying for a hold, or cancel.
+                'pay_path' => $booking->status === Booking::STATUS_HELD && (int) $booking->created_by_user_id === (int) $user->id
+                    ? (self::PAY_PATHS[$booking->module] ?? null) : null,
+                'can_cancel' => MyBookingCancellationController::canCancel($booking, $user),
             ];
         });
 
@@ -223,6 +240,12 @@ class MyBookingsController extends Controller
     {
         $meta = $booking->metadata ?? [];
 
+        // No ticket/voucher for a booking that hasn't been paid for (the
+        // package itinerary is a public brochure, so it stays available).
+        if ($booking->isAwaitingPayment() && $booking->module !== Booking::MODULE_HOLIDAY) {
+            return null;
+        }
+
         return match ($booking->module) {
             Booking::MODULE_FLIGHT => "/flights/bookings/{$booking->id}/ticket.pdf",
             Booking::MODULE_HOLIDAY => isset($meta['package_slug'])
@@ -250,6 +273,12 @@ class MyBookingsController extends Controller
     protected function invoiceUrlFor(Booking $booking): ?string
     {
         $eligible = [Booking::STATUS_TICKETED, Booking::STATUS_REFUND_PROCESSING, Booking::STATUS_REFUNDED];
+
+        // Holiday packages and visas are fulfilled by the ops team, so a
+        // paid one stays 'confirmed' — it still gets its invoice.
+        if (in_array($booking->module, InvoiceController::CONFIRM_ONLY_MODULES, true)) {
+            $eligible[] = Booking::STATUS_CONFIRMED;
+        }
 
         return in_array($booking->status, $eligible, true) ? "/bookings/{$booking->id}/invoice.pdf" : null;
     }

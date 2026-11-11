@@ -36,3 +36,26 @@ apps.map((a,i)=>(0,U.jsxs)(`div`,{className:`flex gap-1`,children:[(0,U.jsx)(`in
 (0,U.jsxs)(`div`,{className:`flex items-center justify-between text-sm`,children:[(0,U.jsx)(`span`,{className:`text-slate-500`,children:`Estimated total`}),(0,U.jsxs)(`span`,{className:`font-bold text-brand-navy`,children:[`₹`,est.toFixed(2)]})]}),
 (0,U.jsx)(J,{className:`w-full`,onClick:go,disabled:busy,children:busy?`Submitting…`:`Continue to payment`}),
 (0,U.jsx)(Jp,{message:err})]})}
+
+function FmtTripActions({booking:b}){
+let qc=vr(),[mode,setMode]=(0,x.useState)(null),[quote,setQuote]=(0,x.useState)(null),[err,setErr]=(0,x.useState)(null),[busy,setBusy]=(0,x.useState)(!1),[done,setDone]=(0,x.useState)(null);
+let refresh=()=>{qc.invalidateQueries({queryKey:[`my-bookings`]});qc.invalidateQueries({queryKey:[`wallet`]})};
+if(done)return(0,U.jsx)(`div`,{className:`mt-4 rounded-md bg-emerald-50 p-3 text-sm font-medium text-emerald-700`,"data-testid":`trip-action-done`,children:done});
+if(!b.pay_path&&!b.can_cancel)return null;
+let money=v=>`₹`+parseFloat(v||0).toFixed(2);
+async function openCancel(){setErr(null);setBusy(!0);try{let{data:r}=await K.get(`/my-bookings/${b.id}/cancellation-quote`);setQuote(r.data);setMode(`cancel`)}catch(e){setErr(q(e))}finally{setBusy(!1)}}
+async function doCancel(){setErr(null);setBusy(!0);try{let{data:r}=await K.post(`/my-bookings/${b.id}/cancel`,{});setDone(r.message);refresh()}catch(e){setErr(q(e))}finally{setBusy(!1)}}
+return(0,U.jsxs)(`div`,{className:`mt-4 space-y-3 border-t border-slate-100 pt-4`,"data-testid":`trip-actions`,children:[
+mode===`pay`&&(0,U.jsx)(FmtHolidayPay,{booking:{...b,status:`held`},base:b.pay_path,title:`Complete your payment`,next:`Your booking is confirmed.`,onPaid:()=>{setDone(`✓ Payment received — your booking is confirmed.`);refresh()}}),
+mode===`cancel`&&quote&&(0,U.jsxs)(`div`,{className:`space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm`,"data-testid":`cancel-quote`,children:[
+(0,U.jsx)(`div`,{className:`font-semibold text-red-700`,children:`Cancel this booking?`}),
+quote.paid?(0,U.jsxs)(U.Fragment,{children:[
+(0,U.jsxs)(`div`,{className:`flex justify-between`,children:[(0,U.jsx)(`span`,{className:`text-slate-600`,children:`Cancellation charge`+(quote.band_label?` (${quote.band_label})`:``)}),(0,U.jsx)(`span`,{children:money(quote.fee_amount)})]}),
+parseFloat(quote.cashback_deducted||0)>0&&(0,U.jsxs)(`div`,{className:`flex justify-between`,children:[(0,U.jsx)(`span`,{className:`text-slate-600`,children:`Cashback already credited`}),(0,U.jsx)(`span`,{children:`− `+money(quote.cashback_deducted)})]}),
+(0,U.jsxs)(`div`,{className:`flex justify-between font-semibold`,children:[(0,U.jsx)(`span`,{children:`Refund to your wallet`}),(0,U.jsx)(`span`,{"data-testid":`refund-amount`,children:money(quote.refund_amount)})]})]}):(0,U.jsx)(`p`,{className:`text-slate-600`,children:`You haven't paid for this booking yet, so nothing will be charged.`}),
+quote.reason&&(0,U.jsx)(`p`,{className:`text-xs text-red-700`,children:quote.reason}),
+(0,U.jsxs)(`div`,{className:`flex justify-end gap-2`,children:[(0,U.jsx)(J,{variant:`secondary`,onClick:()=>setMode(null),children:`Keep booking`}),quote.cancellable&&(0,U.jsx)(J,{onClick:doCancel,disabled:busy,className:`bg-red-600 hover:bg-red-700`,children:busy?`Cancelling…`:`Yes, cancel booking`})]})]}),
+!mode&&(0,U.jsxs)(`div`,{className:`flex flex-wrap justify-end gap-2`,children:[
+b.can_cancel&&(0,U.jsx)(J,{variant:`secondary`,onClick:openCancel,disabled:busy,children:busy?`Checking…`:`Cancel booking`}),
+b.pay_path&&(0,U.jsx)(J,{onClick:()=>setMode(`pay`),children:`Pay now `+money(b.total_amount)})]}),
+(0,U.jsx)(Jp,{message:err})]})}

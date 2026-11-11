@@ -87,6 +87,7 @@ Route::middleware('tenant')->group(function () {
     // Guest checkout — "direct customers can book by login/signup or as a
     // guest" — see HolidayBookingController::guestStore()'s docblock.
     Route::post('/packages/{slug}/guest-bookings', [HolidayBookingController::class, 'guestStore']);
+    Route::post('/packages/{slug}/quote', [HolidayBookingController::class, 'quote']);
 
     // Public storefront's flight search — "guest-accessible browsing,
     // login required only to complete a booking" (Platform Roadmap's B2C
@@ -139,6 +140,9 @@ Route::middleware('tenant')->group(function () {
     // convention as /packages above (see HolidayPackageSearchController's
     // scopeVisibleTo() docblock); booking a visa product still requires an
     // account, same gap as Cabs/Insurance/Cruises/Activities above.
+    // Exchange rates for the storefront currency switcher — not sensitive,
+    // and guests use the switcher too (it 401'd for every signed-out visitor).
+    Route::get('/currency-rates', [CurrencyRateController::class, 'index']);
     Route::get('/visa', [VisaProductSearchController::class, 'index']);
     Route::get('/visa/{visaProduct}', [VisaProductSearchController::class, 'show']);
 
@@ -199,7 +203,6 @@ Route::middleware('tenant')->group(function () {
         Route::post('/tenants/{tenant}/api-credentials/{credential}/regenerate-secret', [ApiPartnerCredentialController::class, 'regenerateSecret']);
         Route::delete('/tenants/{tenant}/api-credentials/{credential}', [ApiPartnerCredentialController::class, 'destroy']);
 
-        Route::get('/currency-rates', [CurrencyRateController::class, 'index']);
 
         Route::get('/reports/summary', [ReportsController::class, 'summary']);
         Route::get('/reports/bookings', [ReportsController::class, 'bookings']);
@@ -291,6 +294,8 @@ Route::middleware('tenant')->group(function () {
         // "Where is the booking history then?" — every module's bookings
         // for the logged-in user, in one list (see MyBookingsController).
         Route::get('/my-bookings', [MyBookingsController::class, 'index']);
+        Route::get('/my-bookings/{booking}/cancellation-quote', [\App\Http\Controllers\Api\MyBookingCancellationController::class, 'quote']);
+        Route::post('/my-bookings/{booking}/cancel', [\App\Http\Controllers\Api\MyBookingCancellationController::class, 'cancel']);
 
         // Platform Roadmap Phase 7 — "Invoices, generated per booking, per
         // user... visible under that user's own login, not just to

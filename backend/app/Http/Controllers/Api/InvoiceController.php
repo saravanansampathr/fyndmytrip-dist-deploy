@@ -41,6 +41,9 @@ use Illuminate\Http\Request;
  */
 class InvoiceController extends Controller
 {
+    /** Modules whose paid bookings end at 'confirmed' (fulfilled by ops), not 'ticketed'. */
+    public const CONFIRM_ONLY_MODULES = [Booking::MODULE_HOLIDAY, Booking::MODULE_VISA];
+
     public function __construct(protected TenantService $tenantService)
     {
     }
@@ -69,6 +72,11 @@ class InvoiceController extends Controller
         // and the invoice date must stay fixed to when that happened
         // rather than drifting to "now" on every later view.
         $ticketedAt = $bookingModel->statusHistory->firstWhere('to_status', Booking::STATUS_TICKETED)?->created_at;
+
+        if ($ticketedAt === null && in_array($bookingModel->module, self::CONFIRM_ONLY_MODULES, true)) {
+            // Packages and visas are paid -> 'confirmed' and never 'ticketed'.
+            $ticketedAt = $bookingModel->statusHistory->firstWhere('to_status', Booking::STATUS_CONFIRMED)?->created_at;
+        }
 
         if ($ticketedAt === null && $bookingModel->status === Booking::STATUS_TICKETED) {
             // No recorded transition row (older data) but the booking is

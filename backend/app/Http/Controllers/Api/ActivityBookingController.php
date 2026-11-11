@@ -72,6 +72,8 @@ class ActivityBookingController extends Controller
 
     public function voucherPdf(Request $request, Booking $booking)
     {
+        abort_if($booking->isAwaitingPayment(), 409, 'Your ticket is issued once payment is complete.');
+
         abort_unless($booking->module === Booking::MODULE_ACTIVITY, 404);
 
         $booking->load([

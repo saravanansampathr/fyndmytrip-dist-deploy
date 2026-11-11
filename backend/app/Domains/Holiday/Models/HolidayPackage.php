@@ -124,6 +124,78 @@ class HolidayPackage extends Model
         return (string) $net->multipliedBy($multiplier)->toScale(2, \Brick\Math\RoundingMode::HALF_UP);
     }
 
+    /**
+     * What a traveller of each occupancy pays when the package has no
+     * price tier of its own for it, as a share of the adult (sharing)
+     * price. Children and infants used to silently pay the full adult fare.
+     */
+    public const OCCUPANCY_FALLBACK_FACTORS = [
+        HolidayPackagePriceTier::OCC_ADULT_SHARING => '1',
+        HolidayPackagePriceTier::OCC_ADULT_SINGLE => '1',
+        HolidayPackagePriceTier::OCC_CHILD_WITH_BED => '0.75',
+        HolidayPackagePriceTier::OCC_CHILD_WITHOUT_BED => '0.5',
+        HolidayPackagePriceTier::OCC_INFANT => '0.1',
+    ];
+
+    public const OCCUPANCY_FALLBACK_AGE_LABELS = [
+        HolidayPackagePriceTier::OCC_CHILD_WITH_BED => 'Age 5y - 11y',
+        HolidayPackagePriceTier::OCC_CHILD_WITHOUT_BED => 'Age 2y - 5y',
+        HolidayPackagePriceTier::OCC_INFANT => 'Under 2y',
+    ];
+
+    /**
+     * Per-person price for one occupancy type: its own tier when set,
+     * otherwise the adult (sharing) tier — or the package price — times
+     * OCCUPANCY_FALLBACK_FACTORS.
+     *
+     * @return array{occupancy_type: string, age_label: ?string, sell_price: string, net_price: string, derived: bool}
+     */
+    public function priceForOccupancy(string $occupancy): array
+    {
+        $tiers = $this->relationLoaded('priceTiers') ? $this->priceTiers : $this->priceTiers()->get();
+        $tier = $tiers->firstWhere('occupancy_type', $occupancy);
+        if ($tier) {
+            return [
+                'occupancy_type' => $occupancy,
+                'age_label' => $tier->age_label,
+                'sell_price' => (string) ($tier->sell_price ?? $this->sell_price),
+                'net_price' => (string) ($tier->net_price ?? $this->net_price),
+                'derived' => false,
+            ];
+        }
+
+        $adult = $tiers->firstWhere('occupancy_type', HolidayPackagePriceTier::OCC_ADULT_SHARING);
+        $factor = \Brick\Math\BigDecimal::of(self::OCCUPANCY_FALLBACK_FACTORS[$occupancy] ?? '1');
+        $scale = fn ($v) => (string) \Brick\Math\BigDecimal::of((string) ($v ?? 0))->multipliedBy($factor)->toScale(2, \Brick\Math\RoundingMode::HALF_UP);
+
+        return [
+            'occupancy_type' => $occupancy,
+            'age_label' => self::OCCUPANCY_FALLBACK_AGE_LABELS[$occupancy] ?? null,
+            'sell_price' => $scale($adult->sell_price ?? $this->sell_price),
+            'net_price' => $scale($adult->net_price ?? $this->net_price),
+            'derived' => true,
+        ];
+    }
+
+    /** Who may see (and so book) which packages; guests pass null. */
+    public function scopeVisibleTo($query, $user)
+    {
+        return $query->where(function ($q) use ($user) {
+            if (! $user) {
+                $q->whereNull('tenant_id')
+                    ->orWhere('share_on_platform_site', true)
+                    ->orWhere('share_with_network', true);
+
+                return;
+            }
+
+            $q->whereNull('tenant_id')
+                ->orWhere('tenant_id', $user->tenant_id)
+                ->orWhere('share_with_network', true)
+                ->when(is_null($user->tenant_id), fn ($w) => $w->orWhere('share_on_platform_site', true));
+        });
+    }
+
     public static function uniqueSlugFor(string $name): string
     {
         $base = Str::slug($name);
