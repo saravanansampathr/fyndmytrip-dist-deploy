@@ -226,6 +226,14 @@ Route::middleware('tenant')->group(function () {
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Partner webhooks.
+        Route::get('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'index']);
+        Route::post('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'store']);
+        Route::put('/webhooks/{webhook}', [\App\Http\Controllers\Api\WebhookController::class, 'update']);
+        Route::delete('/webhooks/{webhook}', [\App\Http\Controllers\Api\WebhookController::class, 'destroy']);
+        Route::post('/webhooks/{webhook}/test', [\App\Http\Controllers\Api\WebhookController::class, 'test'])->middleware('throttle:10,1');
+        Route::get('/webhooks/{webhook}/deliveries', [\App\Http\Controllers\Api\WebhookController::class, 'deliveries']);
+        Route::post('/webhook-deliveries/{delivery}/retry', [\App\Http\Controllers\Api\WebhookController::class, 'retry'])->middleware('throttle:20,1');
         // Business reports (CSV with ?format=csv).
         Route::get('/business-reports/profit', [\App\Http\Controllers\Api\BusinessReportsController::class, 'profit']);
         Route::get('/business-reports/sales', [\App\Http\Controllers\Api\BusinessReportsController::class, 'sales']);

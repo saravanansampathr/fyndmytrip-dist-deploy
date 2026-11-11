@@ -23,3 +23,9 @@ Schedule::call(fn () => \Illuminate\Support\Facades\Cache::forever(\App\Domains\
     ->everyMinute()->name('scheduler-heartbeat');
 Schedule::command(\App\Console\Commands\ReconcilePayments::class)->everyTenMinutes()->withoutOverlapping();
 Schedule::command(\App\Console\Commands\BackupDatabase::class)->dailyAt('01:30')->withoutOverlapping();
+
+// Phase 2 jobs (same single cron entry).
+Schedule::command(\App\Console\Commands\ExpireHeldBookings::class)->everyFiveMinutes()->withoutOverlapping();
+Schedule::command(\App\Console\Commands\TicketingDeadlineAlerts::class)->hourly()->withoutOverlapping();
+Schedule::call(fn () => app(\App\Domains\Webhooks\Services\WebhookDispatcher::class)->retryDue())
+    ->everyMinute()->name('webhooks-retry')->withoutOverlapping();

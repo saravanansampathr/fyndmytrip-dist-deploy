@@ -30,10 +30,17 @@ class BookingLifecycle
         }
 
         $send = function () use ($booking, $from, $to, $reason) {
+            $fresh = $booking->fresh(['tenant', 'createdBy']) ?? $booking;
             try {
-                $this->messages($booking->fresh(['tenant', 'createdBy']) ?? $booking, $from, $to, $reason);
+                $this->messages($fresh, $from, $to, $reason);
             } catch (Throwable $e) {
                 Log::warning("Booking {$booking->id} messages failed: ".$e->getMessage());
+            }
+            // Partner webhooks (signed POST to the partner's own URL).
+            try {
+                app(\App\Domains\Webhooks\Services\WebhookDispatcher::class)->bookingEvent($fresh, $to);
+            } catch (Throwable $e) {
+                Log::warning("Booking {$booking->id} webhooks failed: ".$e->getMessage());
             }
         };
 
