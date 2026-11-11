@@ -81,6 +81,34 @@ for m in list(re.finditer(re.escape(k) + r",\(0,U\.jsx\)\(`div`,\{className:`[^`
     s = s[:m.start()] + f"(0,U.jsx)(FmtChargeNote,{{amount:{v}?.amount}})," + s[m.start():]
     n_notes += 1
 assert n_notes == 7, n_notes
+# Phase 1 admin screens (admin_settings.src.js): tax & invoices, message
+# templates, website pages, failed bookings, GST register, security and
+# system health; each user's own two-factor setup; legal pages that show the
+# admin-edited text when one is published; and real Razorpay / Stripe
+# checkout before every booking payment.
+s = s.replace('function Use(){', open(os.path.join(HERE, 'admin_settings.src.js'), encoding='utf-8').read().strip() + '\nfunction Use(){', 1)
+for old_ok, new_ok in [
+    ("(0,U.jsx)(H,{path:`/platform-settings`,element:(0,U.jsx)(Soe,{})})",
+     "(0,U.jsx)(H,{path:`/platform-settings`,element:(0,U.jsx)(Soe,{})}),(0,U.jsx)(H,{path:`/admin-settings`,element:(0,U.jsx)(FmtAdminSettings,{})}),(0,U.jsx)(H,{path:`/account-security`,element:(0,U.jsx)(FmtAccountSecurity,{})})"),
+    ("{to:`/platform-settings`,label:`Platform settings`,icon:`⚙`,roles:[`super_admin`,`staff`]}",
+     "{to:`/platform-settings`,label:`Platform settings`,icon:`⚙`,roles:[`super_admin`,`staff`]},{to:`/admin-settings`,label:`Admin settings`,icon:`🛠`,roles:[`super_admin`,`staff`,`partner_admin`]},{to:`/account-security`,label:`Login security`,icon:`🔐`,roles:[`super_admin`,`staff`,`partner_admin`,`agent`,`sub_agent`,`staff_user`,`api_user`]}"),
+    # Sign-in: ask for the authenticator code when the account has 2FA on,
+    # and send users who must set it up to the Login security page.
+    ("async function Hf(e){let{data:t}=await K.post(`/auth/login`,e);return t}",
+     "async function Hf(e){let t;try{t=(await K.post(`/auth/login`,e)).data}catch(n){if(n?.response?.status===422&&n.response.data?.two_factor_required&&!e.two_factor_code){let c=prompt(`Enter the 6-digit code from your authenticator app (or a recovery code):`);if(!c)throw n;return Hf({...e,two_factor_code:c.trim()})}throw n}try{t?.two_factor_setup_required?sessionStorage.setItem(`fmt_2fa_setup`,`1`):sessionStorage.removeItem(`fmt_2fa_setup`)}catch(_){}return t}"),
+    ("l(i&&i.startsWith(`/`)?i:`/`)",
+     "l((()=>{try{return sessionStorage.getItem(`fmt_2fa_setup`)===`1`}catch(_){return!1}})()?`/account-security`:i&&i.startsWith(`/`)?i:`/`)"),
+    # Registered before the existing interceptor so it runs after it (axios
+    # runs request interceptors last-registered first) and sees the currency.
+    ("K.interceptors.request.use(e=>{try{if(String(e.method)",
+     "K.interceptors.request.use(fmtGatewayCheckout);K.interceptors.request.use(e=>{try{if(String(e.method)"),
+]:
+    assert s.count(old_ok) == 1, old_ok[:60]
+    s = s.replace(old_ok, new_ok, 1)
+for comp, slug in [('jce', 'privacy-policy'), ('Mce', 'terms-and-conditions'), ('Nce', 'refund-policy'), ('Pce', 'cancellation-policy'), ('Fce', 'disclaimer'), ('Ice', 'about-us')]:
+    old_ok = f"path:`/{slug}`,element:(0,U.jsx)({comp},{{}})"
+    assert s.count(old_ok) == 1, old_ok
+    s = s.replace(old_ok, f"path:`/{slug}`,element:(0,U.jsx)(FmtCmsPage,{{slug:`{slug}`,fallback:{comp}}},`{slug}`)", 1)
 h = hashlib.sha256(s.encode()).hexdigest()[:8]
 new_js = f'index-{h}.js'
 if os.path.exists(OUT): shutil.rmtree(OUT)
@@ -114,6 +142,8 @@ for f in sorted(refs | chunks):
     elif f not in renamed.values(): print('missing chunk', f)
 for f in ['favicon.png', 'apple-touch-icon.png', 'logo.png', 'logo-light.png', 'icons.svg']:
     shutil.copy(f'{SRC}/{f}', f'{OUT}/{f}')
+# Stripe Checkout returns here (in the payment popup, or the main window).
+shutil.copy(os.path.join(HERE, 'payment-return.html'), f'{OUT}/payment-return.html')
 for d in ['data', 'payments', 'certifications']:
     shutil.copytree(f'{SRC}/{d}', f'{OUT}/{d}')
 print('built', new_js, sorted(os.listdir(f'{OUT}/assets')))

@@ -25,6 +25,36 @@ php artisan config:cache && php artisan route:cache
 
 Frontend: upload the contents of `frontend/` to the web root with an SPA fallback to `index.html` (every unknown path serves `index.html`).
 
+**Cron (required).** Add one cPanel cron job that runs every minute:
+
+```
+* * * * * cd /home/<user>/<app>/backend && php artisan schedule:run >> /dev/null 2>&1
+```
+
+It reconciles gateway payments every 10 minutes, and makes the daily backup at 01:30 (database + uploads, in `storage/app/backups`). **Admin settings → Security & health** shows whether the cron job and the backup are running; `GET /api/health` is the same check for an uptime monitor.
+
+## Admin settings (no code changes needed)
+
+**Admin settings** in the portal (super admin and platform staff; white-label admins see Messages and Website pages for their own site):
+
+- **Tax & invoices:** home state, GST % and SAC code per service, invoice and credit-note prefixes (numbers run per financial year, e.g. `FMT2627-000001`), and TCS on overseas holiday packages (threshold and rates; no PAN means the higher rate). A credit note is issued automatically when a booking is refunded.
+- **Messages:** the email, SMS and WhatsApp text for booking confirmed, cancelled, refunded, failed, and the staff alert, with `{{placeholders}}`, a DLT / WhatsApp template ID, *Send a sample*, and a log of what was sent. Providers are set in **Payment & notification gateways** (email: SMTP, SendGrid, Amazon SES; SMS: MSG91, Twilio; WhatsApp: Gupshup, Twilio, Interakt).
+- **Website pages:** privacy policy, terms, refund and cancellation policy, disclaimer, about us, and any extra page. The starter text is a draft for your lawyer; until a page is published the website keeps its built-in page.
+- **Failed bookings:** paid bookings the supplier refused, paid bookings not ticketed after 30 minutes, and gateway payments where the customer never came back. Issue by hand (enter the PNR / ticket numbers) or refund in one click.
+- **GST register:** every invoice and credit note for a financial year, with CSV download for your CA.
+- **Security & health:** wrong-password lock-out, how long staff and customers stay signed in, which roles must turn on two-factor login, alert emails, backup retention, and system health.
+
+Every user can turn on two-factor login (any authenticator app) under **Login security**.
+
+## Card, UPI and net-banking payments
+
+Add the Razorpay and/or Stripe keys in **Payment & notification gateways** and route methods to them in **Payment gateway routing**. Test keys (`rzp_test_…`, `sk_test_…`) take test payments only. With keys in place, every *Pay* button opens the real Razorpay checkout or a Stripe Checkout window, and the booking is confirmed only after the server has checked the payment with the gateway; without keys the old simulated payment is used. Refunds of gateway payments go back to the card automatically.
+
+Set these webhook URLs in the gateway dashboards, with the webhook secret saved in the same settings:
+
+- Razorpay: `https://api-demo.fyndmytrip.in/api/payments/webhooks/razorpay` (event `payment.captured`)
+- Stripe: `https://api-demo.fyndmytrip.in/api/payments/webhooks/stripe` (event `checkout.session.completed`)
+
 ## Paying for packages and visas
 
 Holiday packages (`POST /packages/{slug}/bookings`) and visa applications (`POST /visa/{id}/applications`) create a held booking that the traveller pays for with `POST /holiday-bookings/{id}/confirm` or `/visa-bookings/{id}/confirm` (wallet amount) and, for any remainder, `/pay` (gateway method). Paid bookings become *confirmed* and get an invoice; the ops team then issues vouchers / processes the visa. `VisaSampleProductSeeder` adds six sample visa products.
@@ -52,7 +82,7 @@ Each invoice shows the GSTINs, the place of supply and the SAC code:
 | 998555 | Holiday packages |
 | 998559 | Everything else |
 
-The 18% GST on the service fee is split into CGST + SGST when the seller and buyer are in the same state, and charged as IGST when they're in different states. International flights require each traveller's passport number, date of birth, and a passport expiry after the travel date.
+The GST on the service fee (18% unless changed in Admin settings) is split into CGST + SGST when the seller and buyer are in the same state, and charged as IGST when they're in different states. International flights require each traveller's passport number, date of birth, and a passport expiry after the travel date.
 
 ## Margin (markup) rules
 
