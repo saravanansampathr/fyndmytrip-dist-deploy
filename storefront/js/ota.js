@@ -59,7 +59,7 @@ export function pageSeo(page, svc, brandName) {
   const b = String(brandName || 'Travel').replace(/\s*\((master|default)\)\s*$/i, '');
   const label = svc?.label || 'Travel';
   const titles = {
-    home: [`${b}: Book ${label}, Flights, Hotels & Holidays Online`, `Search and book ${label.toLowerCase()} with ${b}. Clear prices with taxes included, secure payment and instant confirmation.`],
+    home: [`${b}: Book ${[...new Set([label, 'Flights', 'Hotels', 'Holidays'])].join(', ').replace(/, ([^,]*)$/, ' & $1')} Online`, `Search and book ${label.toLowerCase()} with ${b}. Clear prices with taxes included, secure payment and instant confirmation.`],
     results: [`${label} search results | ${b}`, `Compare ${label.toLowerCase()} options and prices, then book online with ${b}.`],
     details: [`${label} details | ${b}`, `See what is included, the cancellation policy and the full price before you book.`],
   };
