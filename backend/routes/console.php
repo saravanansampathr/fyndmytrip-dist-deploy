@@ -17,3 +17,20 @@ Artisan::command('inspire', function () {
 // — Laravel's scheduler checks every minute whether anything registered
 // here is due, and dailyAt('02:00') only actually fires once a day.
 Schedule::command(SendScheduledReports::class)->dailyAt('02:00');
+
+// Phase 1 (launch blockers). All need the same single cron entry above.
+Schedule::call(fn () => \Illuminate\Support\Facades\Cache::forever(\App\Domains\Settings\Services\SystemStatus::HEARTBEAT_KEY, now()->toIso8601String()))
+    ->everyMinute()->name('scheduler-heartbeat');
+Schedule::command(\App\Console\Commands\ReconcilePayments::class)->everyTenMinutes()->withoutOverlapping();
+Schedule::command(\App\Console\Commands\BackupDatabase::class)->dailyAt('01:30')->withoutOverlapping();
+
+// Phase 2 jobs (same single cron entry).
+Schedule::command(\App\Console\Commands\ExpireHeldBookings::class)->everyFiveMinutes()->withoutOverlapping();
+Schedule::command(\App\Console\Commands\TicketingDeadlineAlerts::class)->hourly()->withoutOverlapping();
+Schedule::call(fn () => app(\App\Domains\Webhooks\Services\WebhookDispatcher::class)->retryDue())
+    ->everyMinute()->name('webhooks-retry')->withoutOverlapping();
+Schedule::command(\App\Console\Commands\KycExpiryReminders::class)->dailyAt('09:00')->withoutOverlapping();
+
+// Phase 3 jobs (same single cron entry).
+Schedule::command(\App\Console\Commands\CheckFareAlerts::class)->everySixHours()->withoutOverlapping();
+Schedule::call(fn () => app(\App\Domains\Loyalty\Services\LoyaltyService::class)->expire())->dailyAt('03:00')->name('loyalty-expire')->withoutOverlapping();

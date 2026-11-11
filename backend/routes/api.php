@@ -66,11 +66,23 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+// Uptime monitors: database, cache, storage, cron and backup status.
+Route::get('/health', function () {
+    $report = app(\App\Domains\Settings\Services\SystemStatus::class)->report();
+
+    return response()->json($report, $report['status'] === 'down' ? 503 : 200);
+});
+
+// Razorpay / Stripe server-to-server notifications (signature-checked).
+Route::post('/payments/webhooks/{gateway}', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'webhook']);
+
 Route::middleware('tenant')->group(function () {
-    Route::post('/auth/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('auth.register');
+    // Website pages edited in Admin settings → Pages (privacy, terms...).
+    Route::get('/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'show']);
     Route::post('/auth/login', [AuthController::class, 'login'])->name('auth.login');
-    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
-    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->name('auth.reset-password');
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1')->name('auth.forgot-password');
+    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1')->name('auth.reset-password');
 
     // Public, guest-accessible browsing — genuinely no login required, so a
     // direct customer or an agent's own customer can look at (and an agent
@@ -173,17 +185,114 @@ Route::middleware('tenant')->group(function () {
     // Password screens — see WhiteLabelController::current()'s docblock.
     Route::get('/whitelabel/current', [WhiteLabelController::class, 'current']);
 
+    // Phase 2: banners, offers, FAQ and SEO text; public images; agent sign-up.
+    Route::get('/content', [\App\Http\Controllers\Api\ContentController::class, 'index']);
+    Route::get('/fare-alerts/stop/{token}', [\App\Http\Controllers\Api\FareAlertController::class, 'stop'])->where('token', '[A-Za-z0-9]{40}');
+    Route::get('/media/{id}/{name?}', [\App\Http\Controllers\Api\ContentController::class, 'media'])->whereNumber('id');
+    Route::post('/agent-signup', [\App\Http\Controllers\Api\AgentApplicationController::class, 'store'])->middleware('throttle:5,1');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::put('/auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');
         Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
+        // Privacy: consent, download my data, delete my account.
+        Route::get('/privacy', [\App\Http\Controllers\Api\PrivacyController::class, 'show']);
+        Route::put('/privacy/consent', [\App\Http\Controllers\Api\PrivacyController::class, 'consent']);
+        Route::get('/privacy/export', [\App\Http\Controllers\Api\PrivacyController::class, 'export'])->middleware('throttle:5,1');
+        Route::post('/privacy/delete-account', [\App\Http\Controllers\Api\PrivacyController::class, 'destroy'])->middleware('throttle:5,1');
+
+        // Two-factor login for the signed-in user.
+        Route::get('/auth/two-factor', [\App\Http\Controllers\Api\TwoFactorController::class, 'show']);
+        Route::post('/auth/two-factor/setup', [\App\Http\Controllers\Api\TwoFactorController::class, 'setup']);
+        Route::post('/auth/two-factor/confirm', [\App\Http\Controllers\Api\TwoFactorController::class, 'confirm']);
+        Route::post('/auth/two-factor/recovery-codes', [\App\Http\Controllers\Api\TwoFactorController::class, 'recoveryCodes']);
+        Route::post('/auth/two-factor/disable', [\App\Http\Controllers\Api\TwoFactorController::class, 'disable']);
+
+        // Real card/UPI payments (Razorpay / Stripe).
+        Route::post('/payments/checkout', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'create']);
+        Route::get('/payments/checkout/{transaction}/status', [\App\Http\Controllers\Api\PaymentCheckoutController::class, 'status']);
+
+        // Admin settings (Phase 1): tax, security, monitoring, messages,
+        // website pages, failed bookings, GST register, system health.
+        Route::get('/admin/settings', [\App\Http\Controllers\Api\AdminSettingsController::class, 'index']);
+        Route::put('/admin/settings/{group}', [\App\Http\Controllers\Api\AdminSettingsController::class, 'update']);
+        Route::get('/admin/notification-templates', [\App\Http\Controllers\Api\AdminSettingsController::class, 'templates']);
+        Route::put('/admin/notification-templates', [\App\Http\Controllers\Api\AdminSettingsController::class, 'saveTemplate']);
+        Route::delete('/admin/notification-templates/{event}/{channel}', [\App\Http\Controllers\Api\AdminSettingsController::class, 'resetTemplate']);
+        Route::post('/admin/notification-templates/test', [\App\Http\Controllers\Api\AdminSettingsController::class, 'testTemplate'])->middleware('throttle:10,1');
+        Route::get('/admin/notification-logs', [\App\Http\Controllers\Api\AdminSettingsController::class, 'logs']);
+        Route::get('/admin/gst-register', [\App\Http\Controllers\Api\AdminSettingsController::class, 'invoiceRegister']);
+        Route::get('/admin/system-status', [\App\Http\Controllers\Api\AdminSettingsController::class, 'systemStatus']);
+        Route::get('/admin/pages', [\App\Http\Controllers\Api\CmsPageController::class, 'index']);
+        Route::put('/admin/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'upsert']);
+        Route::delete('/admin/pages/{slug}', [\App\Http\Controllers\Api\CmsPageController::class, 'destroy']);
+        Route::get('/admin/failed-bookings', [\App\Http\Controllers\Api\FailedBookingController::class, 'index']);
+        Route::post('/admin/failed-bookings/{booking}/issue', [\App\Http\Controllers\Api\FailedBookingController::class, 'issue']);
+        Route::post('/admin/failed-bookings/{booking}/refund', [\App\Http\Controllers\Api\FailedBookingController::class, 'refund']);
+
+        // Phase 2: change history, roles and per-user rights.
+        Route::get('/admin/audit-logs', [\App\Http\Controllers\Api\AdminSettingsController::class, 'auditLogs']);
+        Route::get('/admin/roles', [\App\Http\Controllers\Api\RolesController::class, 'index']);
+        Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
+        Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
+        Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
+        // Phase 3: rewards, fare alerts, marketing tags.
+        Route::get('/loyalty', [\App\Http\Controllers\Api\LoyaltyController::class, 'show']);
+        Route::post('/loyalty/redeem', [\App\Http\Controllers\Api\LoyaltyController::class, 'redeem'])->middleware('throttle:10,1');
+        Route::get('/fare-alerts', [\App\Http\Controllers\Api\FareAlertController::class, 'index']);
+        Route::post('/fare-alerts', [\App\Http\Controllers\Api\FareAlertController::class, 'store'])->middleware('throttle:20,1');
+        Route::delete('/fare-alerts/{id}', [\App\Http\Controllers\Api\FareAlertController::class, 'destroy'])->whereNumber('id');
+        Route::get('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'show']);
+        Route::put('/marketing-tags', [\App\Http\Controllers\Api\MarketingTagsController::class, 'update']);
+        // Corporate travel.
+        Route::get('/corporate/companies/{tenant}', [\App\Http\Controllers\Api\CorporateController::class, 'settings']);
+        Route::put('/corporate/companies/{tenant}', [\App\Http\Controllers\Api\CorporateController::class, 'updateSettings']);
+        Route::get('/corporate/companies/{tenant}/statement', [\App\Http\Controllers\Api\CorporateController::class, 'statement']);
+        Route::get('/corporate/trip-requests', [\App\Http\Controllers\Api\CorporateController::class, 'index']);
+        Route::post('/corporate/trip-requests', [\App\Http\Controllers\Api\CorporateController::class, 'store'])->middleware('throttle:30,1');
+        Route::post('/corporate/trip-requests/{tripRequest}/{decision}', [\App\Http\Controllers\Api\CorporateController::class, 'decide'])->whereIn('decision', ['approve', 'reject']);
+        Route::post('/corporate/trip-requests/{tripRequest}/link', [\App\Http\Controllers\Api\CorporateController::class, 'link']);
+        // Fraud checks and offline / imported bookings.
+        Route::get('/admin/fraud-flags', [\App\Http\Controllers\Api\FraudController::class, 'index']);
+        Route::put('/admin/fraud-flags/{flag}', [\App\Http\Controllers\Api\FraudController::class, 'update']);
+        Route::post('/offline-bookings', [\App\Http\Controllers\Api\OfflineBookingController::class, 'store'])->middleware('throttle:60,1');
+        Route::post('/offline-bookings/import', [\App\Http\Controllers\Api\OfflineBookingController::class, 'import'])->middleware('throttle:10,1');
+        Route::get('/offline-bookings/template', [\App\Http\Controllers\Api\OfflineBookingController::class, 'template']);
+        // Content (banners, offers, FAQ, SEO) and agent applications.
+        Route::get('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'adminIndex']);
+        Route::post('/admin/content', [\App\Http\Controllers\Api\ContentController::class, 'store']);
+        Route::put('/admin/content/{item}', [\App\Http\Controllers\Api\ContentController::class, 'update']);
+        Route::delete('/admin/content/{item}', [\App\Http\Controllers\Api\ContentController::class, 'destroy']);
+        Route::post('/admin/media', [\App\Http\Controllers\Api\ContentController::class, 'upload'])->middleware('throttle:30,1');
+        Route::get('/admin/agent-applications', [\App\Http\Controllers\Api\AgentApplicationController::class, 'index']);
+        Route::get('/admin/agent-applications/{id}', [\App\Http\Controllers\Api\AgentApplicationController::class, 'show'])->whereNumber('id');
+        Route::post('/admin/agent-applications/{id}/approve', [\App\Http\Controllers\Api\AgentApplicationController::class, 'approve'])->whereNumber('id');
+        Route::post('/admin/agent-applications/{id}/reject', [\App\Http\Controllers\Api\AgentApplicationController::class, 'reject'])->whereNumber('id');
+        Route::get('/admin/kyc-documents/{doc}/file', [\App\Http\Controllers\Api\AgentApplicationController::class, 'file'])->whereNumber('doc');
+        // Partner webhooks.
+        Route::get('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'index']);
+        Route::post('/webhooks', [\App\Http\Controllers\Api\WebhookController::class, 'store']);
+        Route::put('/webhooks/{webhook}', [\App\Http\Controllers\Api\WebhookController::class, 'update']);
+        Route::delete('/webhooks/{webhook}', [\App\Http\Controllers\Api\WebhookController::class, 'destroy']);
+        Route::post('/webhooks/{webhook}/test', [\App\Http\Controllers\Api\WebhookController::class, 'test'])->middleware('throttle:10,1');
+        Route::get('/webhooks/{webhook}/deliveries', [\App\Http\Controllers\Api\WebhookController::class, 'deliveries']);
+        Route::post('/webhook-deliveries/{delivery}/retry', [\App\Http\Controllers\Api\WebhookController::class, 'retry'])->middleware('throttle:20,1');
+        // Business reports (CSV with ?format=csv).
+        Route::get('/business-reports/profit', [\App\Http\Controllers\Api\BusinessReportsController::class, 'profit']);
+        Route::get('/business-reports/sales', [\App\Http\Controllers\Api\BusinessReportsController::class, 'sales']);
+        Route::get('/business-reports/cancellations', [\App\Http\Controllers\Api\BusinessReportsController::class, 'cancellations']);
+        Route::get('/business-reports/funnel', [\App\Http\Controllers\Api\BusinessReportsController::class, 'funnel']);
+        Route::get('/business-reports/gstr1', [\App\Http\Controllers\Api\BusinessReportsController::class, 'gstr1']);
+        Route::get('/business-reports/tcs', [\App\Http\Controllers\Api\BusinessReportsController::class, 'tcs']);
+        Route::get('/business-reports/tds', [\App\Http\Controllers\Api\BusinessReportsController::class, 'tds']);
 
         Route::apiResource('tenants', TenantController::class)->only(['index', 'show', 'store']);
         Route::get('/tenants/{tenant}/users', [TenantUserController::class, 'index']);
         Route::post('/tenants/{tenant}/users', [TenantUserController::class, 'store']);
         Route::put('/tenants/{tenant}/users/{user}', [TenantUserController::class, 'update']);
         Route::post('/tenants/{tenant}/users/{user}/reset-password', [TenantUserController::class, 'resetPassword']);
+        Route::post('/tenants/{tenant}/users/{user}/reset-two-factor', [TenantUserController::class, 'resetTwoFactor']);
 
         Route::get('/platform-settings', [PlatformSettingsController::class, 'show']);
         Route::put('/platform-settings', [PlatformSettingsController::class, 'update']);

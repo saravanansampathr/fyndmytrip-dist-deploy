@@ -110,6 +110,8 @@ class WhiteLabelController extends Controller
                 'support_email' => $tenant?->support_email ?: null,
                 'support_phone' => $tenant?->support_phone ?: null,
                 'business_address' => $tenant?->business_address ?: null,
+                // Analytics / ads tag IDs (validated IDs only, never code).
+                'tracking' => (object) \App\Http\Controllers\Api\MarketingTagsController::forSite($tenant),
                 'template_id' => $template['id'],
                 'homepage_hero' => $template['homepage_hero'],
                 'homepage_flow' => $template['homepage_flow'],
@@ -158,6 +160,7 @@ class WhiteLabelController extends Controller
             'support_phone' => ['nullable', 'string', 'max:30'],
             'business_address' => ['nullable', 'string', 'max:2000'],
             'business_registration_no' => ['nullable', 'string', 'max:100'],
+            'pan' => ['nullable', 'string', 'regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/'],
             'enabled_modules' => ['nullable', 'array'],
             'enabled_modules.*' => ['in:'.implode(',', Tenant::ALL_MODULES)],
             'social_links' => ['nullable', 'array'],

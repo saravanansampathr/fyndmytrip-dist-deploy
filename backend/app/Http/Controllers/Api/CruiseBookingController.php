@@ -87,16 +87,9 @@ class CruiseBookingController extends Controller
 
         $tenant = $booking->tenant;
 
-        // Same "never show markup as markup" convention as every other
-        // module's customer-facing PDF — the platform's margin is folded
-        // into Service & Fees, never itemised as markup.
-        $baseFare = (float) $booking->supplier_net_amount;
-        $serviceFee = round((float) $booking->markup_amount, 2);
-
-        $priceRows = [['label' => 'Cruise Fare', 'amount' => $baseFare]];
-        if ($serviceFee > 0) {
-            $priceRows[] = ['label' => 'Service & Fees', 'amount' => $serviceFee];
-        }
+        // Markup / service charge is folded into the fare line, never shown
+        // on its own (see App\Support\CustomerFare).
+        $priceRows = \App\Support\CustomerFare::rows($booking, 'Cruise Fare');
 
         $pdf = Pdf::loadView('pdf.cruise-ticket', [
             'booking' => $booking,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Auth\Services\GuestCheckoutService;
 use App\Domains\Booking\Models\Booking;
 use App\Domains\Booking\Models\BookingPassenger;
 use App\Domains\Booking\Models\BusSeatLock;
@@ -162,15 +163,9 @@ class BusBookingController extends Controller
 
         $tenant = $booking->tenant;
 
-        // "No where markup should be shown as markup" — folded into
-        // Service & Fees, same convention as flights/hotel.
-        $baseFare = (float) $booking->supplier_net_amount;
-        $serviceFee = round((float) $booking->markup_amount, 2);
-
-        $priceRows = [['label' => 'Base Fare', 'amount' => $baseFare]];
-        if ($serviceFee > 0) {
-            $priceRows[] = ['label' => 'Service & Fees', 'amount' => $serviceFee];
-        }
+        // Markup / service charge is folded into the fare line, never shown
+        // on its own (see App\Support\CustomerFare).
+        $priceRows = \App\Support\CustomerFare::rows($booking, 'Base Fare');
 
         $pdf = Pdf::loadView('pdf.bus-ticket', [
             'booking' => $booking,
@@ -478,101 +473,40 @@ class BusBookingController extends Controller
     }
 
     /**
-     * Guest checkout — "from home page to till booking, only during the
-     * payment page you may ask book as guest or login and book", same
-     * pattern already established for Holiday Packages/Flights/Hotels (see
-     * FlightBookingController::guestHold()'s docblock): no auth:sanctum on
-     * this route (see routes/api.php), so a browsing visitor reaches this
-     * only once they've searched, picked seats, and filled in passenger
-     * details — right where hold() would otherwise require an account. A
-     * real customer account is transparently created from the guest
-     * contact details given here and logged straight into (the frontend
-     * dispatches the returned token the same way a normal login does), so
-     * confirm/pay and viewing this booking again later all work exactly
-     * like any other customer from this point on.
-     *
-     * If the email already belongs to an existing account this refuses to
-     * silently issue a token for it — same anti-account-takeover guard as
-     * the Holiday Packages/Flights/Hotels guest flows.
+     * Guest checkout: no auth:sanctum on this route (see routes/api.php),
+     * so a visitor can book without an account. The guest is never signed
+     * in to an account: the booking is held for a private guest user with
+     * no email, phone or password, the guest's email and phone go on the
+     * booking as its contact details, and the token returned only works for
+     * this booking's own pages. See GuestCheckoutService for why.
      */
     public function guestHold(Request $request)
     {
         $tenant = $request->attributes->get('resolved_tenant') ?? app(TenantContext::class)->get();
         abort_if(! $tenant, 422, 'Unable to resolve which storefront this booking is for.');
 
-        $guest = $request->validate([
-            'guest_name' => ['required', 'string', 'max:191'],
-            'guest_email' => ['required', 'email', 'max:191'],
-            'guest_phone' => ['nullable', 'string', 'max:20'],
-        ]);
+        // Never signs in to an account — see GuestCheckoutService.
+        $guestCheckout = app(GuestCheckoutService::class);
+        $guest = $guestCheckout->validate($request);
+        $user = $guestCheckout->createGuest($tenant, $guest);
 
-        // Checking "guest_email" alone isn't enough to guard against a
-        // fatal DB error: users.phone carries its own (tenant_id, phone)
-        // unique index (see create_users_table migration), and a guest can
-        // easily reuse a phone number from an earlier booking under a
-        // different email — that crashed live as an uncaught
-        // unique-constraint-violation 500 the first time it happened
-        // (see HotelBookingController::guestHold()'s identical fix),
-        // instead of the friendly validation error below.
-        $existing = User::query()
-            ->where('tenant_id', $tenant->id)
-            ->where(function ($query) use ($guest) {
-                $query->where('email', $guest['guest_email']);
-                if (! empty($guest['guest_phone'])) {
-                    $query->orWhere('phone', $guest['guest_phone']);
-                }
-            })
-            ->first();
-        if ($existing) {
-            $field = $existing->email === $guest['guest_email'] ? 'guest_email' : 'guest_phone';
-            $message = $field === 'guest_email'
-                ? 'An account already exists with this email. Please sign in to continue.'
-                : 'An account already exists with this phone number. Please sign in to continue.';
-            throw ValidationException::withMessages([$field => [$message]]);
+        try {
+            $response = $this->performHold($request, $user);
+        } catch (\Throwable $e) {
+            $guestCheckout->discard($user);
+            throw $e;
         }
 
-        $user = DB::transaction(function () use ($tenant, $guest) {
-            $newUser = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $guest['guest_name'],
-                'email' => $guest['guest_email'],
-                'phone' => $guest['guest_phone'] ?? null,
-                // Random — never told to the guest — since this is a real
-                // account, not a passwordless one; see guestStore()'s
-                // docblock for why.
-                'password_hash' => Hash::make(Str::random(32)),
-                'role' => User::ROLE_CUSTOMER,
-                'status' => User::STATUS_ACTIVE,
-            ]);
+        // performHold() also returns plain error responses (409/422/502)
+        // on a failed fare re-check; those pass through untouched and the
+        // unused guest user is removed.
+        if ($response->getStatusCode() !== 201) {
+            $guestCheckout->discard($user);
 
-            Wallet::create([
-                'tenant_id' => $tenant->id,
-                'owner_type' => Wallet::OWNER_USER,
-                'owner_id' => $newUser->id,
-            ]);
-
-            return $newUser;
-        });
-
-        $response = $this->performHold($request, $user);
-
-        // Only decorate a successful hold (201) with the fresh account's
-        // token — performHold() also returns plain error JsonResponses
-        // (409/502) on a failed fare re-check or seat conflict, which
-        // should pass through untouched. The guest account still exists at
-        // that point (same trade-off HolidayBookingController::guestStore()
-        // already accepts) — they can simply try again, now effectively
-        // logged in.
-        if ($response->getStatusCode() === 201) {
-            $payload = $response->getData(true);
-            $payload['user'] = (new UserResource($user))->toArray($request);
-            $payload['token'] = $user->createToken('api')->plainTextToken;
-            $payload['guest_checkout'] = true;
-
-            return response()->json($payload, 201);
+            return $response;
         }
 
-        return $response;
+        return $guestCheckout->respond($request, $user, $response->getData(true));
     }
 
     /**

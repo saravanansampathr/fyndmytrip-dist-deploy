@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #0f172a; }
+  .card { max-width: 420px; margin: 16px; padding: 28px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; text-align: center; }
+  h1 { font-size: 20px; margin: 0 0 8px; color: #0b2545; }
+  a { display: inline-block; margin-top: 16px; padding: 8px 16px; border-radius: 6px; background: #0f766e; color: #fff; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="t">Thank you</h1>
+  <p id="m">We are confirming your payment. You can close this window.</p>
+  <a href="/my-bookings">Go to my bookings</a>
+</div>
+<script>
+  // Stripe Checkout sends the payer back here. When the payment page was
+  // opened as a popup, the booking page is waiting for it: just close.
+  (function () {
+    var q = new URLSearchParams(location.search);
+    if (q.get('status') !== 'success') {
+      document.getElementById('t').textContent = 'Payment not completed';
+      document.getElementById('m').textContent = 'No money was taken. Your booking is still on hold and you can pay again from My bookings.';
+    }
+    if (window.opener && !window.opener.closed) { setTimeout(function () { window.close(); }, 1200); }
+  })();
+</script>
+</body>
+</html>

@@ -85,6 +85,7 @@ class Tenant extends Model
         'support_phone',
         'business_address',
         'business_registration_no',
+        'pan',
         'dns_status',
         'dns_verified_at',
         'enabled_modules',

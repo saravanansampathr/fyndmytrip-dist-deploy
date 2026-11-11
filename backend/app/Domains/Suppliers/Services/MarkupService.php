@@ -185,6 +185,9 @@ class MarkupService
             ->whereIn('module', [$module, MarkupRule::MODULE_ALL])
             ->whereIn('applies_to_role', $roles)
             ->where('is_active', true)
+            // Seasonal rules only apply between their start and end dates.
+            ->where(fn ($q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('valid_until')->orWhere('valid_until', '>=', now()))
             ->get()
             ->filter(fn (MarkupRule $r) => $this->matchesTarget($r, $tenant, $user)
                 && $this->matchesDestination($r, $context)

@@ -1,6 +1,6 @@
 // Header, footer and the search form, in every layout variant.
 import { SERVICES, ORDER, defaults } from './services.js';
-import { esc, icon } from './ui.js';
+import { esc, icon, fx } from './ui.js';
 import { auth } from './api.js';
 
 export function header(ctx) {
@@ -8,12 +8,13 @@ export function header(ctx) {
   const b = ctx.brand;
   const logo = `<a class="logo" href="#/">${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="">` : `<span class="logo-mark">${esc((b.name || 'F')[0])}</span>`}<span class="logo-name">${esc(b.name)}</span></a>`;
   const svcLinks = ORDER.map((k) => `<a class="nav-svc ${ctx.svc === k ? 'on' : ''}" href="#/?s=${k}" data-svc="${k}">${icon(SERVICES[k].icon, 18)}<span>${SERVICES[k].label}</span></a>`).join('');
-  const u = auth.user;
+  const u = auth.member;
   const account = u
     ? `<span class="acct">${icon('user', 18)}<span>${esc(u.name.split(' ')[0])}</span><button class="link" data-act="logout">Sign out</button></span>`
     : `<a class="acct" href="#/login">${icon('user', 18)}<span>Sign in</span></a>`;
   const help = `<span class="help">${esc(b.support_phone || '+91 80 4000 0000')} · ${esc(b.support_email || 'support@' + (b.domain || 'fyndmytrip.com'))}</span>`;
-  const tpl = `<a class="nav-link" href="#/templates">Templates</a>`;
+  const curs = Object.keys(fx.rates);
+  const tpl = `<a class="nav-link" href="#/templates">Templates</a>` + (curs.length > 1 ? `<select class="cur-select" data-cur aria-label="Currency">${curs.map((c) => `<option value="${c}" ${c === fx.cur ? 'selected' : ''}>${c}</option>`).join('')}</select>` : '');
   switch (v) {
     case 'centered':
       return `<header class="hdr hdr-centered"><div class="wrap hdr-top">${account}${logo}${tpl}</div><nav class="wrap svc-nav">${svcLinks}</nav></header>`;

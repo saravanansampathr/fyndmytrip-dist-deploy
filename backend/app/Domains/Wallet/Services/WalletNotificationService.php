@@ -34,7 +34,8 @@ class WalletNotificationService
         $wallet = $entry->wallet;
         $user = $this->resolveOwnerUser($wallet);
 
-        if (! $user) {
+        // Guest checkout users have no email (see GuestCheckoutService).
+        if (! $user || ! $user->email) {
             return;
         }
 
@@ -57,7 +58,8 @@ class WalletNotificationService
     {
         $user = $this->resolveOwnerUser($wallet);
 
-        if (! $user) {
+        // Guest checkout users have no email (see GuestCheckoutService).
+        if (! $user || ! $user->email) {
             return;
         }
 

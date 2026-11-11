@@ -42,6 +42,12 @@ async function apiGet(p, token) {
     check(`every ${axis} layout is used by some template`, used.size === AXES[axis].length, [...used].join());
   }
 
+  // Guests type the email and mobile of an EXISTING account (live bug: that
+  // signed them in to it, and a used mobile blocked them). Neither may matter.
+  const login = await fetch(API + '/auth/login', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'customer@fyndmytrip.com', password: 'password' }) }).then((r) => r.json());
+  const OWNER = login.user;
+  check('seeded customer can sign in (used as the existing account for guest runs)', !!(OWNER && OWNER.id), JSON.stringify(login).slice(0, 200));
+
   const browser = await chromium.launch();
   const run = Date.now().toString(36);
   const list = TEMPLATES.filter((t) => !ONLY || ONLY.includes(t.id));
@@ -98,14 +104,18 @@ async function apiGet(p, token) {
       await fill();
       if (asGuest) await page.fill('[name=guest_name]', 'Asha Traveller');
       if (t.layout.travellers === 'stepper') await page.click('[data-step="0"] [data-next="1"]');
-      if (asGuest) await page.fill('[name=contact_email]', `guest-${run}-${t.id}@example.com`);
-      await page.fill('[name=contact_phone]', '9' + String(Date.now() + t.id).slice(-9));
+      // Odd guest runs reuse the existing account's email and mobile.
+      const reuse = asGuest && t.id % 4 === 1 && OWNER;
+      if (asGuest) await page.fill('[name=contact_email]', reuse ? OWNER.email : `guest-${run}-${t.id}@example.com`);
+      await page.fill('[name=contact_phone]', reuse && OWNER.phone ? OWNER.phone : '9' + String(Date.now() + t.id).slice(-9));
       if (t.layout.travellers === 'stepper') await page.click('[data-step="1"] [data-next="2"]');
       await shot('travellers');
       await page.click('form[data-trav] button[type=submit]');
       {
         await page.waitForSelector('.pay', { timeout: 20000 });
         await shot('payment');
+        const walletLogin = await page.locator('[data-wallet-login]').count();
+        check(`${tag}: ${asGuest ? 'guest sees "Sign in to use your wallet balance"' : 'signed-in customer gets no sign-in prompt'}`, asGuest ? walletLogin === 1 : walletLogin === 0, walletLogin);
         // wallet is only offered when it covers the booking and the trip is domestic
         const walletShown = await page.locator('[data-pm=fmt_wallet], input[value=fmt_wallet], option[value=fmt_wallet]').count();
         const m = method === 'fmt_wallet' && !walletShown ? 'upi' : method;
@@ -123,9 +133,20 @@ async function apiGet(p, token) {
       check(`${tag}: booking ${ref} paid -> ${status}`, ['holiday', 'visa'].includes(svc) ? ['confirmed', 'ticketed'].includes(status) : status === 'ticketed', status);
       // the API agrees
       const token = await page.evaluate(() => JSON.parse(sessionStorage.getItem('fmt:token')));
-      const [c, mine] = await apiGet('/my-bookings?per_page=100', token);
-      const rows = (mine && (mine.data?.data || mine.data)) || [];
-      check(`${tag}: booking appears in the customer's My bookings`, c === 200 && JSON.stringify(rows).includes(ref), c);
+      if (asGuest) {
+        // A guest is never signed in: no account in the header, the session
+        // is a guest one, and it can't open any account page.
+        const acct = (await page.textContent('.acct')).trim();
+        check(`${tag}: guest is not shown as signed in`, /sign in/i.test(acct), acct);
+        const [mc, me] = await apiGet('/auth/me', token);
+        check(`${tag}: guest session is not an account${reuse ? ' (existing email + mobile used)' : ''}`, mc === 200 && me.data.is_guest === true && me.data.email === null && (!OWNER || me.data.id !== OWNER.id), JSON.stringify(me).slice(0, 200));
+        const [c] = await apiGet('/my-bookings?per_page=100', token);
+        check(`${tag}: guest session can't open My bookings`, c === 401, c);
+      } else {
+        const [c, mine] = await apiGet('/my-bookings?per_page=100', token);
+        const rows = (mine && (mine.data?.data || mine.data)) || [];
+        check(`${tag}: booking appears in the customer's My bookings`, c === 200 && JSON.stringify(rows).includes(ref), c);
+      }
       check(`${tag}: no JS errors`, errors.length === 0, errors.join(' | '));
     } catch (e) {
       check(`${tag}: flow completed`, false, e.message.split('\n')[0] + ' | ' + errors.join(' | '));

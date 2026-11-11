@@ -252,7 +252,9 @@ class Booking extends Model
     {
         $total = \Brick\Math\BigDecimal::of((string) $this->gross_amount)
             ->plus((string) $this->extras_amount)
-            ->minus((string) $this->discount_amount);
+            ->minus((string) $this->discount_amount)
+            // TCS collected on overseas tour packages (see TaxService::tcsFor()).
+            ->plus((string) ($this->metadata['tcs_amount'] ?? '0'));
 
         return (string) $total->toScale(2, \Brick\Math\RoundingMode::HALF_UP);
     }

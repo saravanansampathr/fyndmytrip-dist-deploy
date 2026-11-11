@@ -21,6 +21,9 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'role' => $this->role,
             'status' => $this->status,
+            // A guest checkout session (see GuestCheckoutService), not a
+            // signed-in account.
+            'is_guest' => (bool) $this->is_guest,
             'last_login_at' => $this->last_login_at,
             'created_at' => $this->created_at,
             // The logged-in user's own tenant's "fully custom" brand theme

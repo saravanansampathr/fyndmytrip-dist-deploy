@@ -58,7 +58,8 @@ const bodyText = page => page.locator('body').innerText();
 // Review & pay → wallet (or wallet+gateway when gateway=true) → confirmation.
 async function payAndConfirm(page, { gateway = false, partial = null } = {}) {
   if (partial !== null) await page.locator('input[type=number]').first().fill(String(partial));
-  if (gateway && partial === null) await page.locator('input[type=checkbox]').first().uncheck();
+  const guestWallet = await page.locator('[data-testid=wallet-login]').count();
+  if (gateway && partial === null && !guestWallet) await page.locator('input[type=checkbox]').first().uncheck();
   await page.waitForTimeout(300);
   await click(page, /^(Pay|Proceed to payment gateway)/);
   if (await page.getByText('Choose a payment method').count()) {
@@ -78,7 +79,7 @@ const flows = {
     await page.goto(FE + '/flights'); await page.waitForLoadState('networkidle');
     await click(page, /^Search flights$/);
     await click(page, /^Book$/);
-    if (o.guest) { await fillIf(page, '#guest_name', 'Guest Traveller'); await page.fill('#contact_email', `guest${Date.now()}@example.com`); await page.fill('#contact_phone', '9' + String(Date.now()).slice(-9)); }
+    if (o.guest) { await fillIf(page, '#guest_name', 'Guest Traveller'); await page.fill('#contact_email', o.guestEmail || `guest${Date.now()}@example.com`); await page.fill('#contact_phone', o.guestPhone || '9' + String(Date.now()).slice(-9)); }
     else await contact(page);
     await page.fill('#first-name-0', 'Asha'); await page.fill('#last-name-0', 'Rao');
     await click(page, /Continue to seats/);
@@ -91,6 +92,11 @@ const flows = {
       const m = (await bodyText(page)).match(/Coupon \(FLYFIRST10\)\s*\n\s*-₹([\d,.]+)/); discount = m ? money(m[1]) : NaN;
       check(`${o.label} coupon FLYFIRST10 gives a discount`, discount > 0, discount);
     }
+    if (o.guest) {
+      // Guests get a sign-in prompt instead of wallet controls.
+      const t = await bodyText(page);
+      check(`${o.label}: guest sees "Log in to use your wallet balance", not the wallet`, /Log in to use your wallet balance/.test(t) && !/Use my wallet balance/.test(t), t.slice(0, 200));
+    } else check(`${o.label}: signed-in customer sees the wallet option`, /Use my wallet balance/.test(await bodyText(page)));
     const r = await payAndConfirm(page, o);
     const offer = st.offers[st.holds.at(-1)?.legs?.[0]?.external_id];
     return { ...r, expected: offer ? parseFloat(offer.gross_amount) + extras - discount : NaN };
@@ -148,6 +154,13 @@ async function run(browser, email, svc, opts = {}) {
     const r = await flows[svc](page, st, { ...opts, label, guest: !email });
     check(`${label}: booking confirmed (${r.code || '-'})`, r.confirmed, r.text.slice(0, 300));
     check(`${label}: paid ₹${r.paid} = quoted ₹${r.expected?.toFixed?.(2)}`, near(r.paid, r.expected), `paid ${r.paid} expected ${r.expected}`);
+    if (!email) {
+      // A guest is never signed in, even with an existing account's email/mobile.
+      const s = await page.evaluate(() => ({ user: localStorage.getItem('fyndmytrip_user'), token: localStorage.getItem('fyndmytrip_token') }));
+      check(`${label}: guest is not shown as signed in`, !s.user, s.user);
+      const me = await fetch(API + '/api/auth/me', { headers: { Accept: 'application/json', Authorization: 'Bearer ' + s.token } }).then(x => x.json()).catch(() => null);
+      check(`${label}: guest session is not an account`, me?.data?.is_guest === true && me.data.email === null, JSON.stringify(me).slice(0, 200));
+    }
   } catch (e) {
     check(`${label}: completes`, false, e.message.split('\n')[0]);
     await page.screenshot({ path: `${OUT}/shots/fail-${svc}-${(email || 'guest').split('@')[0]}.png`, fullPage: true }).catch(() => {});
@@ -167,6 +180,11 @@ async function run(browser, email, svc, opts = {}) {
     await run(browser, email, 'hotel');
   }
   await run(browser, null, 'flight', { gateway: true, label: 'flight (guest checkout, gateway)' });
+  {
+    // Live bug: a guest typing an existing account's email was signed in to it.
+    const owner = await fetch(API + '/api/auth/login', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'customer@fyndmytrip.com', password: 'password' }) }).then(x => x.json());
+    await run(browser, null, 'flight', { label: 'flight (guest with an existing account email + mobile)', guestEmail: owner.user.email, guestPhone: owner.user.phone || '9876543210' });
+  }
   await run(browser, 'customer@fyndmytrip.com', 'flight', { coupon: true, label: 'flight with coupon' });
   await run(browser, 'customer@fyndmytrip.com', 'flight', { extras: true, label: 'flight with add-on' });
   await run(browser, 'customer@fyndmytrip.com', 'flight', { partial: 1000, label: 'flight wallet ₹1000 + gateway' });

@@ -28,8 +28,10 @@ class BookingStatusService
         // and reverts to whichever status it was initiated from — see
         // RefundService::fail(), which is the only caller that transitions
         // back to TICKETED/CANCELLED from here.
-        Booking::STATUS_REFUND_PROCESSING => [Booking::STATUS_REFUNDED, Booking::STATUS_TICKETED, Booking::STATUS_CANCELLED],
-        Booking::STATUS_FAILED => [],
+        Booking::STATUS_REFUND_PROCESSING => [Booking::STATUS_REFUNDED, Booking::STATUS_TICKETED, Booking::STATUS_CANCELLED, Booking::STATUS_FAILED],
+        // A paid booking the supplier didn't confirm: staff either issue it
+        // by hand (Failed bookings page) or refund it.
+        Booking::STATUS_FAILED => [Booking::STATUS_CONFIRMED, Booking::STATUS_TICKETED, Booking::STATUS_REFUND_PROCESSING],
         Booking::STATUS_REFUNDED => [],
     ];
 
@@ -41,7 +43,9 @@ class BookingStatusService
             throw new RuntimeException("Cannot transition booking #{$booking->id} from '{$booking->status}' to '{$toStatus}'.");
         }
 
-        return DB::transaction(function () use ($booking, $toStatus, $changedBy, $reason) {
+        $fromStatus = $booking->status;
+
+        $result = DB::transaction(function () use ($booking, $toStatus, $changedBy, $reason) {
             $booking->statusHistory()->create([
                 'from_status' => $booking->status,
                 'to_status' => $toStatus,
@@ -54,5 +58,10 @@ class BookingStatusService
 
             return $booking->fresh();
         });
+
+        // Invoice / credit note and customer messages (see BookingLifecycle).
+        app(BookingLifecycle::class)->handle($result ?? $booking, $fromStatus, $toStatus, $reason);
+
+        return $result;
     }
 }

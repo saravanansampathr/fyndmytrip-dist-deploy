@@ -26,6 +26,55 @@ php artisan config:cache && php artisan route:cache
 
 Frontend: upload the contents of `frontend/` to the web root with an SPA fallback to `index.html` (every unknown path serves `index.html`).
 
+**Cron (required).** Add one cPanel cron job that runs every minute:
+
+```
+* * * * * cd /home/<user>/<app>/backend && php artisan schedule:run >> /dev/null 2>&1
+```
+
+It reconciles gateway payments every 10 minutes, cancels unpaid holds every 5 minutes (time set in Admin settings → Platform), alerts staff hourly about paid bookings not yet ticketed close to travel, retries partner webhooks every minute, checks fare alerts every 6 hours, reminds agents about expiring KYC documents daily at 09:00, expires old loyalty points daily at 03:00, and makes the daily backup at 01:30 (database + uploads, in `storage/app/backups`). **Admin settings → Security & health** shows whether the cron job and the backup are running; `GET /api/health` is the same check for an uptime monitor.
+
+## Admin settings (no code changes needed)
+
+**Admin settings** in the portal (super admin and platform staff; white-label admins see Messages and Website pages for their own site):
+
+- **Tax & invoices:** home state, GST % and SAC code per service, invoice and credit-note prefixes (numbers run per financial year, e.g. `FMT2627-000001`), and TCS on overseas holiday packages (threshold and rates; no PAN means the higher rate). A credit note is issued automatically when a booking is refunded.
+- **Messages:** the email, SMS and WhatsApp text for booking confirmed, cancelled, refunded, failed, and the staff alert, with `{{placeholders}}`, a DLT / WhatsApp template ID, *Send a sample*, and a log of what was sent. Providers are set in **Payment & notification gateways** (email: SMTP, SendGrid, Amazon SES; SMS: MSG91, Twilio; WhatsApp: Gupshup, Twilio, Interakt).
+- **Website pages:** privacy policy, terms, refund and cancellation policy, disclaimer, about us, and any extra page. The starter text is a draft for your lawyer; until a page is published the website keeps its built-in page.
+- **Failed bookings:** paid bookings the supplier refused, paid bookings not ticketed after 30 minutes, and gateway payments where the customer never came back. Issue by hand (enter the PNR / ticket numbers) or refund in one click.
+- **GST register:** every invoice and credit note for a financial year, with CSV download for your CA.
+- **Security & health:** wrong-password lock-out, how long staff and customers stay signed in, which roles must turn on two-factor login, alert emails, backup retention, and system health.
+
+Every user can turn on two-factor login (any authenticator app) under **Login security**.
+
+Phase 2 and 3 tabs in **Admin settings**:
+
+- **Platform & currencies:** maintenance mode (visitors browse but cannot book or pay), unpaid-hold expiry, ticketing alert hours, supplier error pause, search cache; which currencies visitors may pay in, exchange margin, fixed rates, and country → currency.
+- **Banners, offers & FAQ:** home banners (with image upload), offers with coupon codes, FAQ, popular routes, and the Google title/description per page. A partner's items replace the main site's on the partner's website. Shown on the storefront by `storefront/js/extras.js`.
+- **Analytics & ads:** Google Analytics 4, Tag Manager, Google Ads (with purchase conversion label) and Meta Pixel IDs per website. Only IDs are stored; the storefront loads the standard tags and reports a purchase on the confirmation page.
+- **Fraud checks:** every paid booking is scored (high value from a new account, throw-away email, many bookings or failed payments from one contact, the same traveller many times, last-minute expensive international trips). Flagged bookings are listed here and emailed to the alert list; nothing is blocked automatically.
+- **Agent sign-ups:** agents apply at `/agent-signup` with PAN, GSTIN and KYC documents (stored privately). Approve to create the agent account (optionally with document expiry dates) or reject with a reason; the applicant is emailed either way.
+- **Rewards & alerts:** loyalty points (earn rate, point value, minimum to use, expiry), refer-a-friend points, and fare drop alerts. All off by default except fare alerts.
+- **Reports:** profit (margin, GST, commission, net) by booking, agent, partner, supplier, service or month; sales; cancellations and refunds; searches to bookings; GSTR-1 (B2B, B2CS, credit notes, HSN/SAC); TCS and TDS by quarter. Every report downloads as CSV.
+- **Roles:** what each role may do (super admin only). A changed role is no longer reset by the deploy seeder; *Reset to built-in* undoes it. Extra rights for one person: `PUT /api/tenants/{tenant}/users/{user}/rights`.
+- **Change history:** who changed which rule, setting, gateway, template, page, role, user or account, with old and new values (secrets hidden).
+- **Tax & invoices** also has **TDS on agent commission** (section 194H): off until you switch it on; the agent's wallet gets the commission after TDS and the TDS report lists it per PAN. Confirm the rates with your CA.
+
+Other new pages in the portal: **Offline bookings** (enter one booking made by phone or elsewhere, or import a CSV; invoices and reports include them), **Corporate travel** (switch it on for a company account; travel policy, approvers, employees' trip requests, monthly statement with cost centres), **Webhooks** (partners and API customers get signed POSTs on booking confirmed, ticketed, cancelled, refunded and failed; HMAC-SHA256 of `timestamp.body`, header `X-FyndMyTrip-Signature: sha256=…`, retried for a day), and **Rewards & privacy** (points, referral link, fare alerts, offers consent, download my data, delete my account).
+
+Margin and commission rules can have **valid from / until** dates for seasonal pricing.
+
+The portal bundle is rebuilt from the original build plus every patch script with `bash tools/build_portal.sh`.
+
+## Card, UPI and net-banking payments
+
+Add the Razorpay and/or Stripe keys in **Payment & notification gateways** and route methods to them in **Payment gateway routing**. Test keys (`rzp_test_…`, `sk_test_…`) take test payments only. With keys in place, every *Pay* button opens the real Razorpay checkout or a Stripe Checkout window, and the booking is confirmed only after the server has checked the payment with the gateway; without keys the old simulated payment is used. Refunds of gateway payments go back to the card automatically.
+
+Set these webhook URLs in the gateway dashboards, with the webhook secret saved in the same settings:
+
+- Razorpay: `https://api-demo.fyndmytrip.in/api/payments/webhooks/razorpay` (event `payment.captured`)
+- Stripe: `https://api-demo.fyndmytrip.in/api/payments/webhooks/stripe` (event `checkout.session.completed`)
+
 ## Storefront and its 54 templates
 
 `storefront/` is a plain HTML/CSS/JS app (ES modules, no build step) for customers. It covers the whole journey for every service: search, results (sort and filters), details (seat map for buses), traveller details with guest checkout or sign-in, payment (UPI, cards, net banking, international card, or the customer's wallet) and the confirmation with ticket/voucher and invoice download.
@@ -63,7 +112,7 @@ Each invoice shows the GSTINs, the place of supply and the SAC code:
 | 998555 | Holiday packages |
 | 998559 | Everything else |
 
-The 18% GST on the service fee is split into CGST + SGST when the seller and buyer are in the same state, and charged as IGST when they're in different states. International flights require each traveller's passport number, date of birth, and a passport expiry after the travel date.
+The GST on the service fee (18% unless changed in Admin settings) is split into CGST + SGST when the seller and buyer are in the same state, and charged as IGST when they're in different states. International flights require each traveller's passport number, date of birth, and a passport expiry after the travel date.
 
 ## Margin (markup) rules
 

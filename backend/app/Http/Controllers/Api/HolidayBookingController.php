@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Auth\Services\GuestCheckoutService;
 use App\Domains\Booking\Models\Booking;
 use App\Domains\Holiday\Models\HolidayPackage;
 use App\Domains\Suppliers\Services\MarkupService;
@@ -55,93 +56,35 @@ class HolidayBookingController extends Controller
     }
 
     /**
-     * Guest checkout — "direct customers can book by login/signup or as a
-     * guest" — no auth:sanctum on this route (see routes/api.php). Rather
-     * than inventing a separate "guest" concept in the schema, this
-     * transparently creates a real customer account from the contact
-     * details given here (same shape as AuthController::register()) and
-     * logs straight into it, so payment, wallet, cashback and viewing this
-     * booking again later all work exactly like any other customer from
-     * this point on — the person just never had to fill in a password
-     * first. They can set one anytime via "Forgot password".
-     *
-     * If the email already belongs to an existing account this refuses to
-     * silently issue a token for it — anyone could otherwise "guest
-     * checkout" with someone else's known email and take over their
-     * account — and asks them to sign in normally instead.
+     * Guest checkout: no auth:sanctum on this route (see routes/api.php),
+     * so a visitor can book without an account. The guest is never signed
+     * in to an account: the booking is held for a private guest user with
+     * no email, phone or password, the guest's email and phone go on the
+     * booking as its contact details, and the token returned only works for
+     * this booking's own pages. See GuestCheckoutService for why.
      */
     public function guestStore(Request $request, string $slug)
     {
         $tenant = $request->attributes->get('resolved_tenant') ?? app(TenantContext::class)->get();
         abort_if(! $tenant, 422, 'Unable to resolve which storefront this booking is for.');
 
-        $guest = $request->validate([
-            'guest_name' => ['required', 'string', 'max:191'],
-            'guest_email' => ['required', 'email', 'max:191'],
-            'guest_phone' => ['nullable', 'string', 'max:20'],
-        ]);
-
-        // Checking "guest_email" alone isn't enough to guard against a
-        // fatal DB error: users.phone carries its own (tenant_id, phone)
-        // unique index (see create_users_table migration), and a guest can
-        // easily reuse a phone number from an earlier booking under a
-        // different email — that crashed live as an uncaught
-        // unique-constraint-violation 500 the first time it happened
-        // (see HotelBookingController::guestHold()'s identical fix),
-        // instead of the friendly validation error below.
+        // Never signs in to an account — see GuestCheckoutService.
+        $guestCheckout = app(GuestCheckoutService::class);
+        $guest = $guestCheckout->validate($request);
         $request->validate(self::bookingRules());
         $this->findBookable($slug, null);
 
-        $existing = User::query()
-            ->where('tenant_id', $tenant->id)
-            ->where(function ($query) use ($guest) {
-                $query->where('email', $guest['guest_email']);
-                if (! empty($guest['guest_phone'])) {
-                    $query->orWhere('phone', $guest['guest_phone']);
-                }
-            })
-            ->first();
-        if ($existing) {
-            $field = $existing->email === $guest['guest_email'] ? 'guest_email' : 'guest_phone';
-            $message = $field === 'guest_email'
-                ? 'An account already exists with this email. Please sign in to continue.'
-                : 'An account already exists with this phone number. Please sign in to continue.';
-            throw ValidationException::withMessages([$field => [$message]]);
+        $user = $guestCheckout->createGuest($tenant, $guest);
+        try {
+            $booking = $this->createBookingForUser($request, $slug, $user, asGuest: true);
+        } catch (\Throwable $e) {
+            $guestCheckout->discard($user);
+            throw $e;
         }
 
-        $user = DB::transaction(function () use ($tenant, $guest) {
-            $newUser = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $guest['guest_name'],
-                'email' => $guest['guest_email'],
-                'phone' => $guest['guest_phone'] ?? null,
-                // Random — never told to the guest — since this is a real
-                // account, not a passwordless one, and Hash::check() would
-                // otherwise fail confusingly on a null/empty hash if they
-                // ever did try "forgot password" straight away.
-                'password_hash' => Hash::make(Str::random(32)),
-                'role' => User::ROLE_CUSTOMER,
-                'status' => User::STATUS_ACTIVE,
-            ]);
-
-            Wallet::create([
-                'tenant_id' => $tenant->id,
-                'owner_type' => Wallet::OWNER_USER,
-                'owner_id' => $newUser->id,
-            ]);
-
-            return $newUser;
-        });
-
-        $booking = $this->createBookingForUser($request, $slug, $user, asGuest: true);
-        $token = $user->createToken('api')->plainTextToken;
-
-        return response()->json([
-            'data' => new BookingResource($booking),
-            'user' => new UserResource($user),
-            'token' => $token,
-            'guest_checkout' => true,
-        ], 201);
+        return $guestCheckout->respond($request, $user, [
+            'data' => (new BookingResource($booking))->resolve($request),
+        ]);
     }
 
     /**
@@ -158,8 +101,9 @@ class HolidayBookingController extends Controller
         ['catalog' => $catalogAmount, 'net' => $netAmount, 'travelers' => $travelers, 'reseller' => $resellerPricing] = $priced;
 
         $grossAmount = \Brick\Math\BigDecimal::of($resellerPricing['gross_amount']);
+        $tcs = $this->tcsFor($package, (float) $resellerPricing['gross_amount'], $data['pan'] ?? null, $data['contact_email'] ?? $user->email);
 
-        $booking = DB::transaction(function () use ($package, $data, $user, $grossAmount, $netAmount, $catalogAmount, $resellerPricing, $travelers) {
+        $booking = DB::transaction(function () use ($package, $data, $user, $grossAmount, $netAmount, $catalogAmount, $resellerPricing, $travelers, $tcs) {
             return Booking::create([
                 'tenant_id' => $user->tenant_id,
                 'created_by_user_id' => $user->id,
@@ -198,7 +142,11 @@ class HolidayBookingController extends Controller
                     // added on top for its own customer.
                     'catalog_amount' => (string) $catalogAmount->toScale(2, \Brick\Math\RoundingMode::HALF_UP),
                     'reseller_markup_amount' => $resellerPricing['markup_amount'],
-                ],
+                ] + ($tcs['amount'] > 0 ? [
+                    'tcs_amount' => number_format($tcs['amount'], 2, '.', ''),
+                    'tcs_rate' => $tcs['rate'],
+                    'tcs_pan' => $tcs['pan'],
+                ] : []),
             ]);
         });
 
@@ -214,7 +162,28 @@ class HolidayBookingController extends Controller
             'travelers' => ['required', 'array', 'min:1', 'max:20'],
             'travelers.*.name' => ['required', 'string', 'max:191'],
             'travelers.*.occupancy_type' => ['required', 'in:adult_sharing,adult_single,child_with_bed,child_without_bed,infant'],
+            // PAN of the buyer, for TCS on overseas packages.
+            'pan' => ['nullable', 'string', 'regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/'],
         ];
+    }
+
+    /**
+     * TCS on an overseas package when it's switched on in Tax settings.
+     * Without a PAN the higher rate applies.
+     *
+     * @return array{amount: float, rate: float, pan: ?string}
+     */
+    protected function tcsFor(HolidayPackage $package, float $amount, ?string $pan, ?string $email): array
+    {
+        if ($package->booking_scope !== HolidayPackage::SCOPE_INTERNATIONAL) {
+            return ['amount' => 0.0, 'rate' => 0.0, 'pan' => null];
+        }
+        $tax = app(\App\Domains\Settings\Services\TaxService::class);
+        $pan = $pan ? strtoupper($pan) : null;
+        $already = $pan ? $tax->overseasPackageSpendThisYear($pan, $email) : PHP_FLOAT_MAX / 4;
+        $result = $tax->tcsFor($amount, $already);
+
+        return ['amount' => $result['amount'], 'rate' => $result['rate'], 'pan' => $pan];
     }
 
     protected function findBookable(string $slug, ?User $user): HolidayPackage
@@ -246,8 +215,11 @@ class HolidayBookingController extends Controller
         $package = $this->findBookable($slug, $user);
         $priced = $this->priceTravelers($package, $data['travelers'], $tenant, $user);
 
+        $tcs = $this->tcsFor($package, (float) $priced['reseller']['gross_amount'], $request->input('pan'), $user?->email);
+
         return response()->json(['data' => [
-            'total_amount' => $priced['reseller']['gross_amount'],
+            'total_amount' => number_format((float) $priced['reseller']['gross_amount'] + $tcs['amount'], 2, '.', ''),
+            'tcs_amount' => number_format($tcs['amount'], 2, '.', ''),
             'currency' => $package->currency,
             'travelers' => array_map(fn ($t) => ['occupancy_type' => $t['occupancy_type'], 'price' => $t['price']], $priced['travelers']),
         ]]);

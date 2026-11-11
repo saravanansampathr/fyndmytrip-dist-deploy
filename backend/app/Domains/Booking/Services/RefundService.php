@@ -93,6 +93,21 @@ class RefundService
                 $this->completeWalletRefund($refund, $booking, $actingUser);
             }
 
+            if ($method === RefundTransaction::METHOD_GATEWAY) {
+                // Paid through a connected Razorpay/Stripe account: send the
+                // money back to the card/UPI now. If the gateway refuses,
+                // the refund stays "processing" for staff to finish.
+                try {
+                    $reference = app(\App\Domains\Payments\Services\PaymentGatewayService::class)->refundToSource($booking, (float) $amount);
+                    if ($reference) {
+                        $this->markCompleted($refund, $booking, $actingUser, $reference, 'Refunded to the original payment method.');
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Automatic gateway refund for booking {$booking->id} failed: ".$e->getMessage());
+                    $refund->update(['notes' => trim(($refund->notes ? $refund->notes.' ' : '').'Automatic refund failed: '.$e->getMessage())]);
+                }
+            }
+
             return $refund->fresh();
         });
     }

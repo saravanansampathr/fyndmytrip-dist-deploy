@@ -17,6 +17,16 @@ trait HasPermissions
             return true;
         }
 
+        // Extra rights given to, or taken from, this one user (Tenants →
+        // Users → Rights), on top of what their role allows.
+        $overrides = (array) ($this->permission_overrides ?? []);
+        if (in_array($permissionKey, (array) ($overrides['revoke'] ?? []), true)) {
+            return false;
+        }
+        if (in_array($permissionKey, (array) ($overrides['grant'] ?? []), true)) {
+            return true;
+        }
+
         return app(PermissionRegistry::class)->roleHasPermission($this->role, $permissionKey);
     }
 

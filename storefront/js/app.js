@@ -3,7 +3,7 @@
 // session) > the white-label tenant's chosen template (GET /whitelabel/current)
 // > template 1.
 import { api, auth, store } from './api.js';
-import { applyTheme, toast } from './ui.js';
+import { applyTheme, toast, fx, setCurrency, hasStoredCurrency } from './ui.js';
 import { byId } from './templates.js';
 import { SERVICES } from './services.js';
 import { header, footer } from './chrome.js';
@@ -25,6 +25,7 @@ function renderChrome() {
     try { await api('POST', '/auth/logout'); } catch { /* token may already be gone */ }
     auth.clear(); renderChrome(); location.hash = '#/';
   });
+  document.querySelector('[data-cur]')?.addEventListener('change', (e) => { setCurrency(e.target.value); route(); });
 }
 ctx.refreshChrome = renderChrome;
 
@@ -49,6 +50,13 @@ async function boot() {
   const fromUrl = url.searchParams.get('template');
   if (fromUrl) store.set('template', +fromUrl);
   try { const r = await api('GET', '/whitelabel/current'); ctx.brand = r.data || ctx.brand; } catch { /* API down: still render */ }
+  try {
+    let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { /* old browser */ }
+    const r = (await api('GET', '/currency-rates', { tz })).data;
+    fx.base = r.base || 'INR'; fx.rates = r.rates || { INR: 1 };
+    if (!hasStoredCurrency() && r.suggested) setCurrency(r.suggested);
+    if (!fx.rates[fx.cur]) fx.cur = fx.base;
+  } catch { /* rates unavailable: prices stay in INR */ }
   const chosen = store.get('template') || ctx.brand.storefront_template_id || ctx.brand.template_id || 1;
   ctx.t = byId(chosen);
   applyTheme(ctx.t);

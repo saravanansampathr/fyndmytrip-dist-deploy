@@ -163,12 +163,15 @@
     <table class="invoice-title-row">
         <tr>
             <td style="width: 50%;">
-                <div class="invoice-title">Tax Invoice</div>
+                <div class="invoice-title">{{ !empty($creditNote) ? 'Credit Note' : 'Tax Invoice' }}</div>
             </td>
             <td style="width: 50%;">
                 <div class="invoice-meta">
-                    <div>Invoice No: <strong>{{ $invoiceNumber }}</strong></div>
-                    <div>Invoice Date: <strong>{{ $invoiceDate }}</strong></div>
+                    <div>{{ !empty($creditNote) ? 'Credit Note No' : 'Invoice No' }}: <strong>{{ $invoiceNumber }}</strong></div>
+                    <div>{{ !empty($creditNote) ? 'Credit Note Date' : 'Invoice Date' }}: <strong>{{ $invoiceDate }}</strong></div>
+                    @if(!empty($creditNote))
+                    <div>Against Invoice: <strong>{{ $originalInvoiceNumber }}</strong></div>
+                    @endif
                     <div>Booking ID: <strong>{{ $booking->booking_code ?? $booking->booking_reference }}</strong></div>
                     @if(!empty($gst))
                         <div>SAC: <strong>{{ $gst['sac'] }}</strong></div>
@@ -233,7 +236,7 @@
                 </tr>
             @endforeach
             <tr class="total">
-                <td>Total Amount ({{ strtoupper($billToLabel === 'Customer' ? 'amount paid' : 'amount payable') }})</td>
+                <td>{{ !empty($creditNote) ? 'Total Amount Credited' : 'Total Amount ('.strtoupper($billToLabel === 'Customer' ? 'amount paid' : 'amount payable').')' }}</td>
                 <td class="amount">{{ $booking->currency }} {{ number_format($total, 2) }}</td>
             </tr>
             @if(!empty($foreignCharge))

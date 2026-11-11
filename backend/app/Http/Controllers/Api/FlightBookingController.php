@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Auth\Services\GuestCheckoutService;
 use App\Domains\Booking\Models\Booking;
 use App\Domains\Booking\Models\BookingAncillary;
 use App\Domains\Booking\Models\BookingPassenger;
@@ -342,101 +343,40 @@ class FlightBookingController extends Controller
     }
 
     /**
-     * Guest checkout — "from home page to till booking, only during the
-     * payment page you may ask book as guest or login and book", same
-     * pattern already established for Holiday Packages (see
-     * HolidayBookingController::guestStore()'s docblock): no auth:sanctum
-     * on this route (see routes/api.php), so a browsing visitor reaches
-     * this only once they've searched, picked a fare, and filled in
-     * passenger details — right where hold() would otherwise require an
-     * account. A real customer account is transparently created from the
-     * guest contact details given here and logged straight into (the
-     * frontend dispatches the returned token the same way a normal login
-     * does), so seats/extras/coupon/wallet-or-gateway payment and viewing
-     * this booking again later all work exactly like any other customer
-     * from this point on.
-     *
-     * If the email already belongs to an existing account this refuses to
-     * silently issue a token for it — same anti-account-takeover guard as
-     * the Holiday Packages guest flow.
+     * Guest checkout: no auth:sanctum on this route (see routes/api.php),
+     * so a visitor can book without an account. The guest is never signed
+     * in to an account: the booking is held for a private guest user with
+     * no email, phone or password, the guest's email and phone go on the
+     * booking as its contact details, and the token returned only works for
+     * this booking's own pages. See GuestCheckoutService for why.
      */
     public function guestHold(Request $request)
     {
         $tenant = $request->attributes->get('resolved_tenant') ?? app(TenantContext::class)->get();
         abort_if(! $tenant, 422, 'Unable to resolve which storefront this booking is for.');
 
-        $guest = $request->validate([
-            'guest_name' => ['required', 'string', 'max:191'],
-            'guest_email' => ['required', 'email', 'max:191'],
-            'guest_phone' => ['nullable', 'string', 'max:20'],
-        ]);
+        // Never signs in to an account — see GuestCheckoutService.
+        $guestCheckout = app(GuestCheckoutService::class);
+        $guest = $guestCheckout->validate($request);
+        $user = $guestCheckout->createGuest($tenant, $guest);
 
-        // Checking "guest_email" alone isn't enough to guard against a
-        // fatal DB error: users.phone carries its own (tenant_id, phone)
-        // unique index (see create_users_table migration), and a guest can
-        // easily reuse a phone number from an earlier booking under a
-        // different email — that crashed live as an uncaught
-        // unique-constraint-violation 500 the first time it happened
-        // (see HotelBookingController::guestHold()'s identical fix),
-        // instead of the friendly validation error below.
-        $existing = User::query()
-            ->where('tenant_id', $tenant->id)
-            ->where(function ($query) use ($guest) {
-                $query->where('email', $guest['guest_email']);
-                if (! empty($guest['guest_phone'])) {
-                    $query->orWhere('phone', $guest['guest_phone']);
-                }
-            })
-            ->first();
-        if ($existing) {
-            $field = $existing->email === $guest['guest_email'] ? 'guest_email' : 'guest_phone';
-            $message = $field === 'guest_email'
-                ? 'An account already exists with this email. Please sign in to continue.'
-                : 'An account already exists with this phone number. Please sign in to continue.';
-            throw ValidationException::withMessages([$field => [$message]]);
+        try {
+            $response = $this->performHold($request, $user);
+        } catch (\Throwable $e) {
+            $guestCheckout->discard($user);
+            throw $e;
         }
 
-        $user = DB::transaction(function () use ($tenant, $guest) {
-            $newUser = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $guest['guest_name'],
-                'email' => $guest['guest_email'],
-                'phone' => $guest['guest_phone'] ?? null,
-                // Random — never told to the guest — since this is a real
-                // account, not a passwordless one; see guestStore()'s
-                // docblock for why.
-                'password_hash' => Hash::make(Str::random(32)),
-                'role' => User::ROLE_CUSTOMER,
-                'status' => User::STATUS_ACTIVE,
-            ]);
+        // performHold() also returns plain error responses (409/422/502)
+        // on a failed fare re-check; those pass through untouched and the
+        // unused guest user is removed.
+        if ($response->getStatusCode() !== 201) {
+            $guestCheckout->discard($user);
 
-            Wallet::create([
-                'tenant_id' => $tenant->id,
-                'owner_type' => Wallet::OWNER_USER,
-                'owner_id' => $newUser->id,
-            ]);
-
-            return $newUser;
-        });
-
-        $response = $this->performHold($request, $user);
-
-        // Only decorate a successful hold (201) with the fresh account's
-        // token — performHold() also returns plain error JsonResponses
-        // (409/422/502) on a failed fare re-check, which should pass
-        // through untouched. The guest account still exists at that point
-        // (same trade-off HolidayBookingController::guestStore() already
-        // accepts) — they can simply try again, now effectively logged in.
-        if ($response->getStatusCode() === 201) {
-            $payload = $response->getData(true);
-            $payload['user'] = (new UserResource($user))->toArray($request);
-            $payload['token'] = $user->createToken('api')->plainTextToken;
-            $payload['guest_checkout'] = true;
-
-            return response()->json($payload, 201);
+            return $response;
         }
 
-        return $response;
+        return $guestCheckout->respond($request, $user, $response->getData(true));
     }
 
     /**
@@ -500,6 +440,7 @@ class FlightBookingController extends Controller
         $totalGross = \Brick\Math\BigDecimal::of('0.00');
         $totalMarkup = \Brick\Math\BigDecimal::of('0.00');
         $legHolds = [];
+        $airlineTaxes = [];
         $passengerCount = count($data['passengers']);
         // Results quote the fare "per adult"; the booking is for every
         // passenger. Adults and children each take a seat and pay the fare;
@@ -537,6 +478,20 @@ class FlightBookingController extends Controller
                 'supplier_code' => $leg['supplier_code'],
             ]);
 
+            // The airline's own taxes (K3 GST, YQ, airport...) for the
+            // traveller-facing tax breakup, scaled like the fare itself.
+            $legTaxTotal = BigDecimal::zero();
+            $legTaxes = [];
+            foreach ($fareRule->taxBreakup as $code => $amount) {
+                $legTaxes[$code] = BigDecimal::of((string) $amount)->multipliedBy($fareUnits)->toScale(2, RoundingMode::HALF_UP);
+                $legTaxTotal = $legTaxTotal->plus($legTaxes[$code]);
+            }
+            if ($legTaxTotal->isLessThan($legNet)) {
+                foreach ($legTaxes as $code => $amount) {
+                    $airlineTaxes[$code] = isset($airlineTaxes[$code]) ? $airlineTaxes[$code]->plus($amount) : $amount;
+                }
+            }
+
             $totalNet = $totalNet->plus($legNet);
             $totalGross = $totalGross->plus($pricing['gross_amount']);
             $totalMarkup = $totalMarkup->plus($pricing['markup_amount']);
@@ -568,7 +523,10 @@ class FlightBookingController extends Controller
             // number, read by whichever WhatsApp gateway integration sends
             // booking updates (see NotificationGatewayConfig), not a
             // structural booking field.
-            'metadata' => ['whatsapp_opt_in' => $data['whatsapp_opt_in'] ?? false],
+            'metadata' => array_filter([
+                'whatsapp_opt_in' => $data['whatsapp_opt_in'] ?? false,
+                'airline_taxes' => $airlineTaxes === [] ? null : array_map(fn ($v) => (string) $v, $airlineTaxes),
+            ], fn ($v) => $v !== null),
         ]);
 
         foreach ($data['passengers'] as $passenger) {
@@ -1199,9 +1157,9 @@ class FlightBookingController extends Controller
      * Information terms. Kept behind auth (unlike the public holiday
      * itinerary PDF) since it carries passenger names/passport numbers.
      *
-     * ?fare=0 renders the passenger-facing copy with the Fare Details box
-     * left out entirely — "option to choose with or without fare options
-     * ticket pdf". Defaults to including it.
+     * ?fare=0 renders the copy with the Fare Details box left out entirely
+     * — only for B2B bookings downloaded by the agent side (see
+     * CustomerFare::canHideFare()). Direct customers always get the fare.
      */
     public function ticketPdf(Request $request, Booking $booking)
     {
@@ -1214,40 +1172,14 @@ class FlightBookingController extends Controller
             'tenant:id,name,legal_name,logo_url,support_email,support_phone,business_address',
         ]);
 
-        $includeFare = $request->boolean('fare', true);
+        // The fare-less copy is for B2B agents only; a direct customer (or a
+        // guest) always gets the ticket with the price, whatever they ask for.
+        $includeFare = $request->boolean('fare', true)
+            || ! \App\Support\CustomerFare::canHideFare($request->user(), $booking);
 
-        // The commission this platform keeps is never itemised as
-        // "markup" on a document a traveller may see — "no where markup
-        // should be shows as markup, It needed to added in tax alone".
-        // It's folded into the tax/fee lines instead, the same way the
-        // reference ticket folds its own OTA fee into "Management Fee" +
-        // "Management Fee GST" rather than calling it out separately. The
-        // fold assumes the fee is itself GST-inclusive at 18% purely so
-        // the printed lines read like a real invoice rather than one
-        // opaque number.
-        $priceRows = [];
-        if ($includeFare) {
-            $baseFare = (float) $booking->supplier_net_amount;
-            $markup = (float) $booking->markup_amount;
-            $serviceFee = $markup > 0 ? round($markup / 1.18, 2) : 0.0;
-            $gst = $markup > 0 ? round($markup - $serviceFee, 2) : 0.0;
-            $extras = (float) $booking->extras_amount;
-            $discount = (float) $booking->discount_amount;
-
-            $priceRows[] = ['label' => 'Base Fare', 'amount' => $baseFare];
-            if ($serviceFee > 0) {
-                $priceRows[] = ['label' => 'Taxes & Fees', 'amount' => $serviceFee];
-            }
-            if ($gst > 0) {
-                $priceRows[] = ['label' => 'GST (18%)', 'amount' => $gst];
-            }
-            if ($extras > 0) {
-                $priceRows[] = ['label' => 'Add-on Services (meals / seats / baggage)', 'amount' => $extras];
-            }
-            if ($discount > 0) {
-                $priceRows[] = ['label' => 'Discount', 'amount' => -$discount];
-            }
-        }
+        // Markup / service charge / convenience fee is never its own line:
+        // it is folded into Base Fare so the lines still add up to the total.
+        $priceRows = $includeFare ? \App\Support\CustomerFare::rows($booking, 'Base Fare') : [];
 
         $tenant = $booking->tenant;
 
@@ -1276,6 +1208,8 @@ class FlightBookingController extends Controller
     {
         $bookings = Booking::query()
             ->where('module', Booking::MODULE_FLIGHT)
+            // Customers only list their own bookings.
+            ->when($request->user()->role === User::ROLE_CUSTOMER, fn ($q) => $q->where('created_by_user_id', $request->user()->id))
             ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 25));
 

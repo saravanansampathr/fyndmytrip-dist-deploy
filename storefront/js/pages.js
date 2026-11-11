@@ -3,8 +3,9 @@
 // storefront needs only an SPA fallback (or none) on the host.
 import { SERVICES, ORDER, defaults } from './services.js';
 import { api, auth, store } from './api.js';
-import { esc, icon, money, fmtDate, toast } from './ui.js';
+import { esc, icon, money, fmtDate, toast, fx, charging, inr } from './ui.js';
 import { searchForm, readForm } from './chrome.js';
+import { gatewayCheckout } from './checkout.js';
 import { TEMPLATES, AXES } from './templates.js';
 
 export const go = (hash) => { location.hash = hash; };
@@ -245,12 +246,12 @@ export async function travellers(root, ctx) {
   if (!pick || pick.svc !== ctx.svc) { go('#/?s=' + ctx.svc); return; }
   const svc = SERVICES[ctx.svc];
   const pax = svc.pax(pick.query);
-  const u = auth.user;
+  const u = auth.member;
   const people = Array.from({ length: pax }, (_, i) => i);
   const block = (i) => `<div class="pax" data-pax="${i}">${travellerFields(svc, i, i === 0 && u ? { name: u.name, first_name: u.name.split(' ')[0], last_name: u.name.split(' ').slice(1).join(' ') } : {})}</div>`;
   const contact = `<div class="grid-2"><label class="fld" for="c-email"><span>Email</span><input id="c-email" name="contact_email" type="email" required value="${esc(u?.email || '')}"></label><label class="fld" for="c-phone"><span>Mobile</span><input id="c-phone" name="contact_phone" type="tel" value="${esc(u?.phone || '')}" placeholder="+91"></label></div>`;
   const who = u ? `<div class="signed">${icon('user', 18)} Booking as <b>${esc(u.name)}</b> (${esc(u.email)})</div>`
-    : `<div class="who"><div class="who-opt"><h4>Have an account?</h4><p class="muted">Sign in to use your wallet and see this booking in My bookings.</p><div class="grid-2"><label class="fld"><span>Email</span><input name="login_email" type="email" autocomplete="username"></label><label class="fld"><span>Password</span><input name="login_password" type="password" autocomplete="current-password"></label></div><button type="button" class="btn btn-ghost" data-login>Sign in</button></div>${svc.guest ? `<div class="who-opt"><h4>Or continue as a guest</h4><p class="muted">We'll create your account from the contact details below and email your booking.</p><label class="fld"><span>Your full name</span><input name="guest_name" value=""></label></div>` : `<div class="who-opt"><h4>New here?</h4><p class="muted">${svc.label} need an account. Create one in seconds.</p><div class="grid-2"><label class="fld"><span>Full name</span><input name="reg_name"></label><label class="fld"><span>Choose a password</span><input name="reg_password" type="password" minlength="8"></label></div><button type="button" class="btn btn-ghost" data-register>Create account</button></div>`}</div>`;
+    : `<div class="who"><div class="who-opt"><h4>Have an account?</h4><p class="muted">Sign in to use your wallet and see this booking in My bookings.</p><div class="grid-2"><label class="fld"><span>Email</span><input name="login_email" type="email" autocomplete="username"></label><label class="fld"><span>Password</span><input name="login_password" type="password" autocomplete="current-password"></label></div><button type="button" class="btn btn-ghost" data-login>Sign in</button></div>${svc.guest ? `<div class="who-opt"><h4>Or continue as a guest</h4><p class="muted">No account or password needed. We'll send your booking to the email and mobile below.</p><label class="fld"><span>Your full name</span><input name="guest_name" value=""></label></div>` : `<div class="who-opt"><h4>New here?</h4><p class="muted">${svc.label} need an account. Create one in seconds.</p><div class="grid-2"><label class="fld"><span>Full name</span><input name="reg_name"></label><label class="fld"><span>Choose a password</span><input name="reg_password" type="password" minlength="8"></label></div><button type="button" class="btn btn-ghost" data-register>Create account</button></div>`}</div>`;
   const summary = `<aside class="card mini-sum"><h4>${esc(svc.title(pick.offer))}</h4><p class="muted small">${esc(svc.subtitle(pick.offer))}</p>${pick.extra?.seats?.length ? `<p>Seats: <b>${pick.extra.seats.join(', ')}</b></p>` : ''}<p>Estimated <strong>${money(pick.estimate)}</strong></p></aside>`;
   const go_ = `<button class="btn btn-primary btn-lg" type="submit">Continue to payment ${icon('arrow', 18)}</button>`;
   const v = ctx.t.layout.travellers;
@@ -298,7 +299,7 @@ export async function travellers(root, ctx) {
       toast(empty.name === 'contact_email' ? 'Please enter a contact email.' : 'Please fill in every traveller\'s details.');
       return;
     }
-    const guest = !auth.token;
+    const guest = !auth.member;
     if (guest && !svc.guest) { toast(`Please sign in or create an account to book ${svc.label.toLowerCase()}.`); return; }
     const btn = f.querySelector('button[type=submit]');
     busy(btn, true, 'Holding your booking…');
@@ -307,6 +308,7 @@ export async function travellers(root, ctx) {
     const path = svc.bookPath ? svc.bookPath(pick.offer, guest) : (guest ? svc.guest : svc.base);
     try {
       const r = await api('POST', path, payload);
+      // Guest checkout: a session for this booking only, never a login.
       if (r.token) auth.save(r.token, r.user);
       const booking = r.data;
       store.set('booking', { svc: ctx.svc, booking, offer: pick.offer });
@@ -339,7 +341,7 @@ export async function payment(root, ctx) {
   } catch (e) { root.innerHTML = `<div class="wrap empty"><h3>Booking not found</h3><p>${esc(e.message)}</p></div>`; return; }
   if (booking.status !== 'held') { go(`#/done/${ctx.svc}/${ctx.id}`); return; }
   let wallet = null;
-  try { wallet = (await api('GET', '/wallet')).data; } catch { /* no wallet */ }
+  if (auth.member) { try { wallet = (await api('GET', '/wallet')).data; } catch { /* no wallet */ } }
   const total = Number(booking.total_amount);
   const bal = wallet ? Number(wallet.balance ?? wallet.available_balance ?? 0) : 0;
   const methods = Object.keys(METHODS).filter((m) => m !== 'fmt_wallet' || (wallet && !booking.is_international && bal >= total));
@@ -347,7 +349,9 @@ export async function payment(root, ctx) {
   const sum = `<div class="pay-sum"><h3>Booking summary</h3><p><b>${esc(offer ? svc.title(offer) : svc.label)}</b></p><dl><dt>Booking ID</dt><dd>${esc(booking.booking_code || booking.booking_reference)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(booking.travel_date_start || ''))}</dd><dt>Travellers</dt><dd>${booking.passenger_count}</dd><dt>Base fare</dt><dd>${money(booking.gross_amount, booking.currency)}</dd>${Number(booking.extras_amount) ? `<dt>Extras</dt><dd>${money(booking.extras_amount)}</dd>` : ''}${Number(booking.discount_amount) ? `<dt>Discount</dt><dd>−${money(booking.discount_amount)}</dd>` : ''}<dt class="tot">Total payable</dt><dd class="tot">${money(total, booking.currency)}</dd></dl>${wallet ? `<p class="muted small">Wallet balance: ${money(bal)}</p>` : ''}</div>`;
   const opt = (m, type) => { const [l, ic, d] = METHODS[m]; return type === 'radio' ? `<label class="pm"><input type="radio" name="pm" value="${m}">${icon(ic, 22)}<span><b>${l}</b><small>${d}</small></span></label>` : `<button type="button" class="pm" data-pm="${m}">${icon(ic, type === 'tile' ? 30 : 20)}<b>${l}</b><small>${d}</small></button>`; };
   const payBtn = `<button class="btn btn-primary btn-lg btn-pay" data-pay disabled>${icon('lock', 18)} Pay ${money(total, booking.currency)}</button>`;
-  const secure = `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>`;
+  // Guests have no wallet: offer sign-in instead (a new hold is made under the account).
+  const walletLogin = auth.member ? '' : `<p class="wallet-login">${icon('wallet', 18)} <span>Have an account? <button type="button" class="link" data-wallet-login>Sign in to use your wallet balance</button></span></p>`;
+  const secure = walletLogin + `<p class="secure">${icon('lock', 16)} Payments are processed securely by our payment partner. Your hold is kept while you pay.</p>` + (charging() !== fx.base ? `<p class="muted small" data-charge-note>Your card is charged <b>${money(total, booking.currency)}</b> (${inr(total)}) in ${charging()} at today's rate.</p>` : '');
   const v = ctx.t.layout.payment;
   let html;
   switch (v) {
@@ -366,6 +370,7 @@ export async function payment(root, ctx) {
   root.querySelectorAll('input[name=pm]').forEach((r) => r.addEventListener('change', () => choose(r.value)));
   root.querySelector('[data-pm-select]')?.addEventListener('change', (e) => choose(e.target.value));
   payBtnEl?.addEventListener('click', () => pay(payBtnEl));
+  root.querySelector('[data-wallet-login]')?.addEventListener('click', () => { toast('Sign in below, then continue to pay with your wallet.'); go(`#/travellers/${ctx.svc}`); });
   async function pay(btn) {
     if (!chosen) return;
     busy(btn, true, 'Processing payment…');
@@ -374,7 +379,7 @@ export async function payment(root, ctx) {
       if (chosen === 'fmt_wallet') r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: total.toFixed(2) });
       else {
         r = await api('POST', `${payBase}/${ctx.id}/confirm`, { wallet_amount: 0 });
-        if (r.requires_payment) r = await api('POST', `${payBase}/${ctx.id}/pay`, { method: chosen });
+        if (r.requires_payment) { const paid = await gatewayCheckout(ctx.id, chosen, charging()); r = await api('POST', `${payBase}/${ctx.id}/pay`, { method: chosen, currency: charging(), ...paid }); }
       }
       store.set('booking', { ...(saved || {}), booking: r.data });
       go(`#/done/${ctx.svc}/${ctx.id}`);
@@ -390,9 +395,9 @@ export async function done(root, ctx) {
   if (svc.base && auth.token) { try { b = (await api('GET', `${svc.base}/${ctx.id}`)).data; } catch { /* keep cached */ } }
   if (!b) { root.innerHTML = '<div class="wrap empty"><h3>Booking not found</h3></div>'; return; }
   const ok = ['ticketed', 'confirmed'].includes(b.status);
-  root.innerHTML = `<section class="wrap narrow done"><div class="card done-card ${ok ? 'ok' : ''}"><div class="done-ic">${icon(ok ? 'check' : 'lock', 40)}</div><h1>${ok ? 'Booking confirmed' : 'Booking ' + esc(b.status)}</h1><p class="muted">A confirmation has been sent to ${esc(b.contact_email || 'your email')}.</p><dl><dt>Booking reference</dt><dd data-ref>${esc(b.booking_code || b.booking_reference || b.id)}</dd><dt>Status</dt><dd data-status>${esc(b.status)}</dd>${(b.ticket_numbers || []).length ? `<dt>Ticket / voucher no.</dt><dd>${esc(b.ticket_numbers.join(', '))}</dd>` : ''}<dt>Amount</dt><dd>${money(b.total_amount, b.currency)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(b.travel_date_start || ''))}</dd></dl><div class="done-actions">${ok && DOCS[ctx.svc] ? `<button class="btn btn-primary" data-doc="${svc.base}/${b.id}/${DOCS[ctx.svc]}">Download ${DOCS[ctx.svc].replace('.pdf', '')}</button>` : ''}${ok ? `<button class="btn btn-ghost" data-doc="/bookings/${b.id}/invoice.pdf">Download invoice</button>` : ''}<a class="btn btn-ghost" href="#/?s=${ctx.svc}">Book another</a></div></div></section>`;
+  root.innerHTML = `<section class="wrap narrow done"><div class="card done-card ${ok ? 'ok' : ''}"><div class="done-ic">${icon(ok ? 'check' : 'lock', 40)}</div><h1>${ok ? 'Booking confirmed' : 'Booking ' + esc(b.status)}</h1><p class="muted">A confirmation has been sent to ${esc(b.contact_email || 'your email')}.</p><dl><dt>Booking reference</dt><dd data-ref>${esc(b.booking_code || b.booking_reference || b.id)}</dd><dt>Status</dt><dd data-status>${esc(b.status)}</dd>${(b.ticket_numbers || []).length ? `<dt>Ticket / voucher no.</dt><dd>${esc(b.ticket_numbers.join(', '))}</dd>` : ''}<dt>Amount</dt><dd>${money(b.total_amount, b.currency)}</dd><dt>Travel date</dt><dd>${esc(fmtDate(b.travel_date_start || ''))}</dd></dl><div class="done-actions">${ok && DOCS[ctx.svc] ? `<button class="btn btn-primary" data-doc="${svc.base}/${b.id}/${DOCS[ctx.svc]}">Download ${DOCS[ctx.svc].replace('.pdf', '')}</button>` : ''}${ok && ctx.svc === 'flight' && b.can_hide_fare ? `<button class="btn btn-ghost" data-doc="${svc.base}/${b.id}/ticket.pdf?fare=0" data-name="ticket-no-fare.pdf">Ticket without fare</button>` : ''}${ok ? `<button class="btn btn-ghost" data-doc="/bookings/${b.id}/invoice.pdf">Download invoice</button>` : ''}<a class="btn btn-ghost" href="#/?s=${ctx.svc}">Book another</a></div></div></section>`;
   root.querySelectorAll('[data-doc]').forEach((btn) => btn.addEventListener('click', async () => {
-    try { const res = await api('GET', btn.dataset.doc, null, { raw: true }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = btn.dataset.doc.split('/').pop(); a.click(); }
+    try { const res = await api('GET', btn.dataset.doc, null, { raw: true }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = btn.dataset.name || btn.dataset.doc.split('/').pop(); a.click(); }
     catch (e) { toast('Download failed: ' + e.message); }
   }));
 }

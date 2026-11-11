@@ -51,6 +51,11 @@ class ResolveTenant
             abort(403, 'This tenant is not currently active.');
         }
 
+        // Maintenance mode and the services this account may sell.
+        if ($blocked = app(\App\Domains\Settings\Services\SiteControls::class)->check($request, $tenant ?? null)) {
+            return $blocked;
+        }
+
         return $next($request);
     }
 
