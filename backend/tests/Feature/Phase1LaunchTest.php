@@ -141,7 +141,9 @@ class Phase1LaunchTest extends TestCase
         });
         $this->get("/api/bookings/{$one->id}/invoice.pdf")->assertOk();
         $this->assertStringContainsString("ABC{$fy}-000001", (string) $html);
-        $this->assertStringContainsString('(2.5%)', (string) $html); // CGST/SGST at half of 5%
+        // A direct customer's invoice folds our fee and its GST into Base
+        // Fare (user's rule, 2026-11-11); the GST is still recorded above.
+        $this->assertStringNotContainsString('(2.5%)', (string) $html);
 
         Sanctum::actingAs($admin, ['*']);
         $csv = $this->get('/api/admin/gst-register?format=csv')->assertOk()->getContent();

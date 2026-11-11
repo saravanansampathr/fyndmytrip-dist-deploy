@@ -87,42 +87,22 @@ class InvoiceController extends Controller
 
         abort_if($ticketedAt === null, 404, 'No invoice is available for this booking yet.');
 
-        // GST is charged on the platform's service value (the markup, which
-        // is GST-inclusive). The tax lines must stay on a tax invoice, but
-        // the markup itself is never printed as a fee: for a direct (B2C)
-        // customer its taxable part is folded into Base Fare, so the
-        // invoice reads Base Fare + GST + extras = total. A B2B invoice
-        // (agent / sub-agent / white-label / API partner) keeps the taxable
-        // service value on its own line, because a registered business
-        // needs it to claim input tax credit.
-        $markup = (float) $bookingModel->markup_amount;
-        $taxService = app(\App\Domains\Settings\Services\TaxService::class);
-        $gstRate = $taxService->gstRate($bookingModel->module);
-        $serviceValue = $markup > 0 ? round($markup / (1 + $gstRate / 100), 2) : 0.0;
-        $gst = $markup > 0 ? round($markup - $serviceValue, 2) : 0.0;
-        $fare = \App\Support\CustomerFare::fare($bookingModel);
-        $isB2C = $bookingModel->channel === Booking::CHANNEL_DIRECT || $bookingModel->channel === null;
-
-        $lineItems = [];
-        if ($isB2C) {
-            $lineItems[] = ['label' => 'Base Fare', 'amount' => round($fare - $gst, 2)];
-        } else {
-            $lineItems[] = ['label' => 'Base Fare', 'amount' => round($fare - $markup, 2)];
-            if ($serviceValue > 0) {
-                $lineItems[] = ['label' => 'Service charges (taxable value)', 'amount' => $serviceValue];
-            }
-        }
+        // Same price lines as the e-ticket (App\Support\CustomerFare):
+        // a direct customer sees Base Fare (our markup and its GST folded
+        // in) plus the airline's tax breakup; a B2B partner also sees our
+        // Convenience fee and the GST on it, to claim input tax credit.
         $issuingTenant = $bookingModel->tenant;
         [$billTo, $billToLabel] = $this->resolveBillTo($bookingModel);
         $sellerReg = $issuingTenant?->business_registration_no;
         if (! \App\Domains\Booking\Services\GstService::gstin($sellerReg)) {
             $sellerReg = Tenant::query()->where('type', Tenant::TYPE_MASTER)->value('business_registration_no');
         }
+        $taxService = app(\App\Domains\Settings\Services\TaxService::class);
+        [, $gst] = \App\Support\CustomerFare::splitFee($bookingModel);
         $gstDetails = app(\App\Domains\Booking\Services\GstService::class)->breakdown($bookingModel->module, $gst, $sellerReg, $billTo['registration_no'] ?? null);
-        foreach ($gstDetails['lines'] as $line) {
-            $lineItems[] = $line;
-        }
-        foreach (\App\Support\CustomerFare::extraRows($bookingModel) as $row) {
+
+        $lineItems = [];
+        foreach (\App\Support\CustomerFare::rows($bookingModel, 'Base Fare', $sellerReg, $billTo['registration_no'] ?? null) as $row) {
             if (str_starts_with($row['label'], 'TCS')) {
                 $row['label'] = 'TCS u/s 206C(1G) ('.($bookingModel->metadata['tcs_rate'] ?? '').'%)'.(! empty($bookingModel->metadata['tcs_pan']) ? ' · PAN '.$bookingModel->metadata['tcs_pan'] : '');
             }

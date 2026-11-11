@@ -93,6 +93,9 @@ class SupplierOrchestrator
             confirmedNetAmount: $offer['net_amount'],
             isRefundable: $offer['is_refundable'] ?? $result->isRefundable,
             rules: $result->rules,
+            taxBreakup: $adapter instanceof \App\Domains\Suppliers\Adapters\MockFlightSupplierAdapter
+                ? \App\Domains\Suppliers\Adapters\MockFlightSupplierAdapter::mockTaxes((float) $offer['net_amount'])
+                : $result->taxBreakup,
         );
     }
 

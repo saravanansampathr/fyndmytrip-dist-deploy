@@ -440,6 +440,7 @@ class FlightBookingController extends Controller
         $totalGross = \Brick\Math\BigDecimal::of('0.00');
         $totalMarkup = \Brick\Math\BigDecimal::of('0.00');
         $legHolds = [];
+        $airlineTaxes = [];
         $passengerCount = count($data['passengers']);
         // Results quote the fare "per adult"; the booking is for every
         // passenger. Adults and children each take a seat and pay the fare;
@@ -477,6 +478,20 @@ class FlightBookingController extends Controller
                 'supplier_code' => $leg['supplier_code'],
             ]);
 
+            // The airline's own taxes (K3 GST, YQ, airport...) for the
+            // traveller-facing tax breakup, scaled like the fare itself.
+            $legTaxTotal = BigDecimal::zero();
+            $legTaxes = [];
+            foreach ($fareRule->taxBreakup as $code => $amount) {
+                $legTaxes[$code] = BigDecimal::of((string) $amount)->multipliedBy($fareUnits)->toScale(2, RoundingMode::HALF_UP);
+                $legTaxTotal = $legTaxTotal->plus($legTaxes[$code]);
+            }
+            if ($legTaxTotal->isLessThan($legNet)) {
+                foreach ($legTaxes as $code => $amount) {
+                    $airlineTaxes[$code] = isset($airlineTaxes[$code]) ? $airlineTaxes[$code]->plus($amount) : $amount;
+                }
+            }
+
             $totalNet = $totalNet->plus($legNet);
             $totalGross = $totalGross->plus($pricing['gross_amount']);
             $totalMarkup = $totalMarkup->plus($pricing['markup_amount']);
@@ -508,7 +523,10 @@ class FlightBookingController extends Controller
             // number, read by whichever WhatsApp gateway integration sends
             // booking updates (see NotificationGatewayConfig), not a
             // structural booking field.
-            'metadata' => ['whatsapp_opt_in' => $data['whatsapp_opt_in'] ?? false],
+            'metadata' => array_filter([
+                'whatsapp_opt_in' => $data['whatsapp_opt_in'] ?? false,
+                'airline_taxes' => $airlineTaxes === [] ? null : array_map(fn ($v) => (string) $v, $airlineTaxes),
+            ], fn ($v) => $v !== null),
         ]);
 
         foreach ($data['passengers'] as $passenger) {
