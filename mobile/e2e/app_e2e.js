@@ -241,6 +241,20 @@ async function payAndConfirm(page, method) {
     return { partnerTab };
   });
 
+
+  await run('only services switched on for the account are shown', async (page) => {
+    // Answer GET /account/services as the master account would for a site
+    // that sells only flights and hotels.
+    await page.route('**/api/account/services', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { account: null, services: ['flight', 'hotel'], inventories: [] } }) }));
+    await open(page);
+    await page.locator(tid('svc-hotel')).waitFor({ timeout: 15000 });
+    await page.waitForTimeout(500);
+    const bus = await page.locator(tid('svc-bus')).count();
+    const visa = await page.locator(tid('svc-visa')).count();
+    if (bus || visa) throw new Error('switched-off services still shown');
+    return { shown: ['flight', 'hotel'] };
+  });
+
   fs.writeFileSync(path.join(OUT, 'app_results.json'), JSON.stringify(results, null, 2));
   const bad = results.filter((r) => !r.ok);
   console.log(`\n${results.length - bad.length}/${results.length} passed`);

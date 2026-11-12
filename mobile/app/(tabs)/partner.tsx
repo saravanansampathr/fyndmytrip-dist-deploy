@@ -20,7 +20,7 @@ import { C } from '../../src/theme';
 const RANGES: [string, string][] = [['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['quarter', 'Quarter']];
 
 export default function Partner() {
-  const { user, partner, brand } = useApp();
+  const { user, partner, brand, services } = useApp();
   const [range, setRange] = useState('month');
   const [wallet, setWallet] = useState<any>(null);
   const [sum, setSum] = useState<any>(null);
@@ -75,7 +75,7 @@ export default function Partner() {
 
       <H2>Book for a customer</H2>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        {['flight', 'hotel', 'bus', 'holiday', 'cab', 'visa'].map((k) => (
+        {['flight', 'hotel', 'bus', 'holiday', 'cab', 'visa'].filter((k) => !services || services.includes(k)).map((k) => (
           <Pressable key={k} style={st.quick} onPress={() => router.navigate({ pathname: '/', params: { s: k } })} testID={`quick-${k}`}>
             <Ionicons name={SERVICES[k].icon as any} size={22} color={C.primary} /><Text style={{ fontSize: 12, color: C.ink, marginTop: 4 }}>{SERVICES[k].label}</Text>
           </Pressable>

@@ -20,10 +20,13 @@ const HEAD: Record<string, string> = {
 };
 
 export default function Home() {
-  const { brand, currency } = useApp();
+  const { brand, currency, services } = useApp();
+  const order = services ? ORDER.filter((k) => services.includes(k)) : ORDER;
   const { s: sParam } = useLocalSearchParams<{ s?: string }>();
   const [svcKey, setSvc] = useState(sParam && SERVICES[sParam] ? sParam : 'flight');
   useEffect(() => { if (sParam && SERVICES[sParam]) setSvc(sParam); }, [sParam]);
+  // If the chosen service is switched off for this account, fall back to the first one on.
+  useEffect(() => { if (order.length && !order.includes(svcKey)) setSvc(order[0]); }, [services]);
   const [pkgs, setPkgs] = useState<any[] | null>(null);
   const [offers, setOffers] = useState<any[]>([]);
   const svc = SERVICES[svcKey];
@@ -49,7 +52,7 @@ export default function Home() {
           <Text style={st.cur} accessibilityLabel={`Prices in ${currency}`}>{currency}</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.svcRow}>
-          {ORDER.map((k) => (
+          {order.map((k) => (
             <Pressable key={k} testID={`svc-${k}`} accessibilityRole="tab" accessibilityState={{ selected: k === svcKey }} onPress={() => setSvc(k)} style={[st.svc, k === svcKey && st.svcOn]}>
               <Ionicons name={SERVICES[k].icon as any} size={22} color={k === svcKey ? '#fff' : C.primary} />
               <Text style={[st.svcText, k === svcKey && { color: '#fff' }]}>{SERVICES[k].label}</Text>
@@ -67,6 +70,7 @@ export default function Home() {
               <Pressable key={p.label} onPress={() => startSearch(svcKey, p.q)} style={st.pop}><Text style={{ color: C.ink }}>{p.label}</Text></Pressable>
             ))}
           </View>
+          {!services || services.includes('holiday') ? (<>
           <H2>Holiday packages</H2>
           {pkgs === null ? <Muted>Loading packages…</Muted> : !pkgs.length ? <Muted>Packages are unavailable right now.</Muted> : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
@@ -85,6 +89,7 @@ export default function Home() {
               ))}
             </ScrollView>
           )}
+          </>) : null}
           <H2 style={{ marginTop: 16 }}>Offers for you</H2>
           {(offers.length ? offers.map((o) => [o.code, o.description || o.name || '']) : [['Book early', 'The best fares go first. Book 3+ weeks ahead.'], ['Pay your way', 'Cards, UPI, net banking or your wallet.']]).map(([a, b]) => (
             <Card key={a} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>

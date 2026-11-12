@@ -26,6 +26,7 @@ type Ctx = {
   partner: boolean;           // agent, sub-agent, white-label, API partner or staff
   hasSession: boolean;        // any token, guest or member
   brand: Brand;
+  services: string[] | null; // services this account / site may sell (null = all)
   currency: string;
   currencies: string[];
   setCurrency: (c: string) => void;
@@ -46,6 +47,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [brand, setBrand] = useState<Brand>({ name: 'FyndMyTrip' });
   const [currency, setCur] = useState('INR');
   const [currencies, setCurrencies] = useState<string[]>(['INR']);
+  const [services, setServices] = useState<string[] | null>(null);
   const [msg, setMsg] = useState('');
   const fade = useRef(new Animated.Value(0)).current;
   const timer = useRef<any>(null);
@@ -94,13 +96,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [clear]);
 
+  // Which services this account (or, signed out, this website) may sell, as
+  // set by the master account. An older API without this endpoint: show all.
+  useEffect(() => {
+    if (!ready) return;
+    api('GET', '/account/services')
+      .then((r) => setServices(Array.isArray(r?.data?.services) ? r.data.services : null))
+      .catch(() => setServices(null));
+  }, [ready, rawUser?.id, hasSession]);
+
   // A guest checkout session only opens the guest's own booking; it is not a
   // signed-in account (see backend GuestCheckoutService).
   const user = rawUser && !rawUser.is_guest ? rawUser : null;
   const brandName = String(brand.name || 'FyndMyTrip').replace(/\s*\((master|default)\)\s*$/i, '');
   const partner = isPartner(user);
-  const value = useMemo(() => ({ ready, user, partner, hasSession, brand: { ...brand, name: brandName }, currency, currencies, setCurrency, signIn, signOut, toast }),
-    [ready, user, partner, hasSession, brand, brandName, currency, currencies, setCurrency, signIn, signOut, toast]);
+  const value = useMemo(() => ({ ready, user, partner, hasSession, services, brand: { ...brand, name: brandName }, currency, currencies, setCurrency, signIn, signOut, toast }),
+    [ready, user, partner, hasSession, services, brand, brandName, currency, currencies, setCurrency, signIn, signOut, toast]);
 
   return (
     <AppCtx.Provider value={value}>
