@@ -16,6 +16,8 @@ fi
 # Booking flow upgrade (confirmation, trust, mobile pay bar, landing pages,
 # B2B page), then the pre-rendered SEO pages, sitemap, robots.txt, .htaccess.
 python3 "$ROOT/tools/booking-ux/patch_booking_ux.py" "$TMP/out"
+# Accounts & inventory: share inventories with each account, monitor them.
+python3 "$ROOT/tools/accounts-hub/patch_accounts.py" "$TMP/out"
 python3 "$ROOT/tools/seo/build_seo.py" "$TMP/out" "${SITE_URL:-https://demo.fyndmytrip.in}"
 node --check "$TMP/out/assets/"index-*.js
 rm -rf "$ROOT/frontend"

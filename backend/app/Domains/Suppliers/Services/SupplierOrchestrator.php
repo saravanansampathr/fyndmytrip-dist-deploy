@@ -181,38 +181,41 @@ class SupplierOrchestrator
     }
 
     /**
+     * The supplier connections a search for this account fans out to: the
+     * account's own contracts first, then those of each account above it
+     * (its white-label partner, then the master), nearest first per
+     * supplier. Connections that come from above are used only when that
+     * inventory is shared with the account (Accounts & inventory).
+     *
      * @return \Illuminate\Support\Collection<int, TenantSupplierConfig>
      */
     protected function resolveActiveConfigs(Tenant $tenant, string $module): \Illuminate\Support\Collection
     {
-        $configs = TenantSupplierConfig::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->whereHas('supplier', fn ($q) => $q->whereJsonContains('supported_modules', $module))
-            ->with('supplier')
-            ->orderBy('priority_order')
-            ->get();
+        $access = app(\App\Domains\Tenancy\Services\InventoryAccessService::class);
+        $picked = collect();
 
-        if ($configs->isNotEmpty()) {
-            return $configs;
+        foreach ($this->tenantChain($tenant) as $depth => $owner) {
+            $configs = TenantSupplierConfig::withoutTenantScope()
+                ->where('tenant_id', $owner->id)
+                ->where('is_active', true)
+                ->whereHas('supplier', fn ($q) => $q->whereJsonContains('supported_modules', $module))
+                ->with('supplier')
+                ->orderBy('priority_order')
+                ->get();
+
+            foreach ($configs as $config) {
+                $code = $config->supplier->code;
+                if ($picked->has($code)) {
+                    continue;
+                }
+                if ($depth > 0 && ! $access->allows($tenant, $code)) {
+                    continue;
+                }
+                $picked->put($code, $config);
+            }
         }
 
-        // No tenant-owned supplier contracts yet — fall back to the Master
-        // platform-default configuration, per the "Add Supplier" wizard
-        // being opt-in rather than mandatory (Master Brief §6).
-        $master = Tenant::query()->where('type', Tenant::TYPE_MASTER)->first();
-
-        if (! $master || $master->id === $tenant->id) {
-            return $configs;
-        }
-
-        return TenantSupplierConfig::withoutTenantScope()
-            ->where('tenant_id', $master->id)
-            ->where('is_active', true)
-            ->whereHas('supplier', fn ($q) => $q->whereJsonContains('supported_modules', $module))
-            ->with('supplier')
-            ->orderBy('priority_order')
-            ->get();
+        return $picked->values();
     }
 
     protected function resolveConfigForSupplier(Tenant $tenant, string $supplierCode): ?TenantSupplierConfig
@@ -223,27 +226,50 @@ class SupplierOrchestrator
             return null;
         }
 
-        $config = TenantSupplierConfig::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
-            ->where('supplier_id', $supplier->id)
-            ->where('is_active', true)
-            ->first();
+        foreach ($this->tenantChain($tenant) as $depth => $owner) {
+            $config = TenantSupplierConfig::withoutTenantScope()
+                ->where('tenant_id', $owner->id)
+                ->where('supplier_id', $supplier->id)
+                ->where('is_active', true)
+                ->first();
 
-        if ($config) {
+            if (! $config) {
+                continue;
+            }
+            if ($depth > 0 && ! app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->allows($tenant, $supplierCode)) {
+                abort(403, 'This inventory is not available for your account.');
+            }
+
             return $config;
         }
 
-        $master = Tenant::query()->where('type', Tenant::TYPE_MASTER)->first();
+        return null;
+    }
 
-        if (! $master) {
-            return null;
+    /**
+     * The account, the accounts above it, and the master last (also when
+     * an account is not linked to it, as before).
+     *
+     * @return array<int, Tenant>
+     */
+    protected function tenantChain(Tenant $tenant): array
+    {
+        $chain = [];
+        $ids = [];
+        for ($t = $tenant; $t && count($chain) < 12; $t = $t->parent_tenant_id ? Tenant::query()->find($t->parent_tenant_id) : null) {
+            if (isset($ids[$t->id])) {
+                break;
+            }
+            $chain[] = $t;
+            $ids[$t->id] = true;
         }
 
-        return TenantSupplierConfig::withoutTenantScope()
-            ->where('tenant_id', $master->id)
-            ->where('supplier_id', $supplier->id)
-            ->where('is_active', true)
-            ->first();
+        $master = Tenant::query()->where('type', Tenant::TYPE_MASTER)->first();
+        if ($master && ! isset($ids[$master->id])) {
+            $chain[] = $master;
+        }
+
+        return $chain;
     }
 
     protected function resolveAdapter(string $supplierCode): SupplierAdapterInterface
@@ -262,6 +288,7 @@ class SupplierOrchestrator
         return implode(':', [
             'supplier_search',
             $tenant->id,
+            'v'.app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->version(),
             $request->module,
             $request->origin,
             $request->destination,

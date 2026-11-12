@@ -30,6 +30,7 @@ class AuditTrail
         \App\Domains\Notifications\Models\NotificationTemplate::class => 'Message template',
         \App\Domains\Suppliers\Models\TenantSupplierConfig::class => 'Supplier connection',
         \App\Domains\Tenancy\Models\Tenant::class => 'Account',
+        \App\Domains\Tenancy\Models\TenantInventoryAccess::class => 'Inventory access',
         \App\Models\User::class => 'User',
         \App\Domains\Settings\Models\AppSetting::class => 'Settings',
         \App\Domains\Cms\Models\CmsPage::class => 'Website page',

@@ -202,12 +202,9 @@ class CruiseBookingController extends Controller
             ->where('departure_port', $departurePort)
             ->where('arrival_port', $arrivalPort)
             ->whereDate('departure_date', $sailDate)
-            ->where(function ($q) use ($tenantId) {
-                $q->whereNull('tenant_id')
-                    ->orWhere('tenant_id', $tenantId)
-                    ->orWhere('share_with_network', true)
-                    ->when(is_null($tenantId), fn ($q2) => $q2->orWhere('share_on_platform_site', true));
-            })
+            // Own rows always; the master's and network-shared rows only
+            // when 'own_inventory' is shared with this account.
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, $tenantId))
             ->get();
 
         return $items->filter->isSellable()->map(fn (CruiseInventoryItem $item) => $item->toCruiseOfferArray())->values()->all();
@@ -529,7 +526,10 @@ class CruiseBookingController extends Controller
     {
         $id = (int) str_replace('inv-', '', $externalId);
 
-        return CruiseInventoryItem::query()->findOrFail($id);
+        // Only stock this account may sell (see InventoryAccessService).
+        return CruiseInventoryItem::query()
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, app(\App\Domains\Tenancy\Services\TenantContext::class)->id()))
+            ->findOrFail($id);
     }
 
     protected function ownInventoryPriceCheck(string $externalId): FareRuleResult

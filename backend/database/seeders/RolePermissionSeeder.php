@@ -41,7 +41,7 @@ class RolePermissionSeeder extends Seeder
                 'tenant.create', 'tenant.view', 'tenant.manage_users',
                 'booking.view', 'booking.cancel', 'booking.refund', 'booking.manage',
                 'ticket.view', 'ticket.create', 'ticket.manage',
-                'wallet.view', 'supplier.configure',
+                'wallet.view', 'supplier.configure', 'inventory.assign',
                 'payment_gateway.configure', 'notification_gateway.configure',
                 // Cancellation/refund policy (Phase 2) is money-sensitive
                 // enough that it's staff/partner-admin managed rather than
@@ -74,7 +74,7 @@ class RolePermissionSeeder extends Seeder
                 'booking.view', 'booking.create', 'booking.cancel', 'booking.refund', 'booking.manage',
                 'ticket.view', 'ticket.create', 'ticket.manage',
                 'wallet.view', 'wallet.topup',
-                'coupon.manage', 'supplier.configure',
+                'coupon.manage', 'supplier.configure', 'inventory.assign',
                 'payment_gateway.configure', 'notification_gateway.configure',
                 'policy.manage',
                 'payments.offline.submit',

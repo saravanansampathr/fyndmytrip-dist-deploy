@@ -201,12 +201,9 @@ class CabBookingController extends Controller
             ->where('origin', $origin)
             ->where('destination', $destination)
             ->whereDate('travel_date', $travelDate)
-            ->where(function ($q) use ($tenantId) {
-                $q->whereNull('tenant_id')
-                    ->orWhere('tenant_id', $tenantId)
-                    ->orWhere('share_with_network', true)
-                    ->when(is_null($tenantId), fn ($q2) => $q2->orWhere('share_on_platform_site', true));
-            })
+            // Own rows always; the master's and network-shared rows only
+            // when 'own_inventory' is shared with this account.
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, $tenantId))
             ->get();
 
         return $items->filter->isSellable()->map(fn (CabInventoryItem $item) => $item->toCabOfferArray())->values()->all();
@@ -525,7 +522,10 @@ class CabBookingController extends Controller
     {
         $id = (int) str_replace('inv-', '', $externalId);
 
-        return CabInventoryItem::query()->findOrFail($id);
+        // Only stock this account may sell (see InventoryAccessService).
+        return CabInventoryItem::query()
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, app(\App\Domains\Tenancy\Services\TenantContext::class)->id()))
+            ->findOrFail($id);
     }
 
     protected function ownInventoryPriceCheck(string $externalId): FareRuleResult

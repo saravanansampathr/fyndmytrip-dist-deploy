@@ -16,7 +16,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Caches each account's inventory switches for one request.
+        $this->app->scoped(\App\Domains\Tenancy\Services\InventoryAccessService::class);
     }
 
     /**
