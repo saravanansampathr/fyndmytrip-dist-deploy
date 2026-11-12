@@ -1,6 +1,11 @@
-// FyndMyTrip brand colours (from the logo) and spacing.
+// Brand colours and spacing. The main colour comes from the build settings
+// (app.json extra.primaryColor, or APP_PRIMARY_COLOR for a white-label app).
+import Constants from 'expo-constants';
+
+const brand = String((Constants.expoConfig?.extra as any)?.primaryColor || '#ff234f');
+
 export const C = {
-  primary: '#ff234f',
+  primary: /^#[0-9a-fA-F]{6}$/.test(brand) ? brand : '#ff234f',
   primaryDark: '#d81b42',
   ink: '#0f172a',
   text: '#1e293b',

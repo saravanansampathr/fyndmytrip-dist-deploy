@@ -1,6 +1,6 @@
 // My Trips: every booking of the signed-in customer, newest first.
 import React, { useCallback, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/api';
@@ -13,7 +13,8 @@ import { C } from '../../src/theme';
 
 
 export default function Trips() {
-  const { user, ready } = useApp();
+  const { user, partner, ready } = useApp();
+  const [q, setQ] = useState('');
   const [rows, setRows] = useState<any[] | null>(null);
   const [err, setErr] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -22,8 +23,8 @@ export default function Trips() {
   const load = useCallback(async () => {
     if (!user) return;
     setErr('');
-    try { const r = await api('GET', '/my-bookings', { per_page: 100 }); setRows(r.data || []); } catch (e: any) { setErr(e.message); }
-  }, [user]);
+    try { const r = await api('GET', '/my-bookings', { per_page: 100, search: q.trim() || undefined }); setRows(r.data || []); } catch (e: any) { setErr(e.message); }
+  }, [user, q]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (!ready) return null;
@@ -42,6 +43,11 @@ export default function Trips() {
           <Pressable key={t} onPress={() => setTab(t)} style={[st.tab, tab === t && st.tabOn]} testID={`trips-${t}`}><Text style={[{ fontWeight: '600', color: C.muted }, tab === t && { color: C.primary }]}>{t === 'upcoming' ? 'Upcoming' : 'Past & cancelled'}</Text></Pressable>
         ))}
       </View>
+      {partner ? (
+        <View style={{ padding: 12, paddingBottom: 0 }}>
+          <TextInput value={q} onChangeText={setQ} onSubmitEditing={load} returnKeyType="search" placeholder="Search booking ID, customer email or phone" placeholderTextColor="#94a3b8" style={st.search} testID="trips-search" />
+        </View>
+      ) : null}
       <FlatList
         data={list}
         keyExtractor={(r) => String(r.id)}
@@ -75,5 +81,6 @@ const st = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabOn: { borderBottomColor: C.primary },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.line },
+  search: { minHeight: 44, borderWidth: 1, borderColor: C.line, borderRadius: 10, paddingHorizontal: 12, backgroundColor: '#fff', fontSize: 15 },
   ic: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#fff0f3', alignItems: 'center', justifyContent: 'center' },
 });

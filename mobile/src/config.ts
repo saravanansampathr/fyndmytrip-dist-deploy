@@ -11,3 +11,6 @@ export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || extra.apiBase || 'h
 // own app sets its domain here.
 export const STOREFRONT_HOST = process.env.EXPO_PUBLIC_STOREFRONT_HOST || extra.storefrontHost || 'demo.fyndmytrip.in';
 export const WEBSITE_URL = (process.env.EXPO_PUBLIC_WEBSITE_URL || extra.websiteUrl || 'https://demo.fyndmytrip.in').replace(/\/$/, '');
+
+// A partner's own branded app: show their logo/name, never FyndMyTrip's.
+export const WHITE_LABEL = !!(extra as any).whiteLabel;

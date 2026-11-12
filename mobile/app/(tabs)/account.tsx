@@ -8,6 +8,7 @@ import { api } from '../../src/api';
 import { useApp } from '../../src/store';
 import { money } from '../../src/money';
 import { WEBSITE_URL } from '../../src/config';
+import { ROLE_LABEL } from '../../src/roles';
 import { Button, Card, Choice, H2, Input, Muted, Row } from '../../src/components/ui';
 import { C } from '../../src/theme';
 import Constants from 'expo-constants';
@@ -21,7 +22,7 @@ function Link({ icon, title, onPress, testID }: { icon: any; title: string; onPr
 }
 
 export default function Account() {
-  const { user, signOut, currency, currencies, setCurrency, toast, brand } = useApp();
+  const { user, partner, signOut, currency, currencies, setCurrency, toast, brand } = useApp();
   const [wallet, setWallet] = useState<any>(null);
   const [del, setDel] = useState(false);
   const [pw, setPw] = useState('');
@@ -44,9 +45,10 @@ export default function Account() {
         <Card>
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontWeight: '800', fontSize: 20 }}>{(user.name || '?').slice(0, 1).toUpperCase()}</Text></View>
-            <View style={{ flex: 1 }}><Text style={{ fontWeight: '800', fontSize: 17, color: C.ink }} testID="acct-name">{user.name}</Text><Muted>{user.email}</Muted></View>
+            <View style={{ flex: 1 }}><Text style={{ fontWeight: '800', fontSize: 17, color: C.ink }} testID="acct-name">{user.name}</Text><Muted>{user.email}</Muted>{partner ? <Muted>{ROLE_LABEL[String(user.role)] || 'Partner'}</Muted> : null}</View>
           </View>
           {wallet ? <Row label="Wallet balance" value={money(wallet.balance ?? wallet.available_balance ?? 0)} testID="acct-wallet" /> : null}
+          {wallet && partner && Number(wallet.credit_limit) ? <Row label="Credit available" value={money(wallet.credit_available)} /> : null}
         </Card>
       ) : (
         <Card>
@@ -54,6 +56,7 @@ export default function Account() {
           <Muted style={{ marginBottom: 12 }}>Sign in to see your trips, use your wallet and book faster.</Muted>
           <Button title="Sign in" onPress={() => router.push('/login')} testID="acct-login" />
           <Button kind="ghost" title="Create account" onPress={() => router.push({ pathname: '/login', params: { mode: 'register' } })} style={{ marginTop: 8 }} />
+          <Button kind="link" title="Travel agent or partner? Partner sign in" onPress={() => router.push({ pathname: '/login', params: { who: 'partner' } })} style={{ marginTop: 8 }} testID="acct-partner-login" />
         </Card>
       )}
       <Card>

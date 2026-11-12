@@ -1,6 +1,6 @@
 # FyndMyTrip mobile apps (Android and iOS)
 
-One codebase (Expo / React Native, TypeScript) builds both the Android and the iOS app. It talks to the same API as the website (`https://api-demo.fyndmytrip.in/api` by default) and books the same way as the storefront in `storefront/`.
+One app for customers (B2C) and partners (B2B), and one codebase for every white-label partner's own app. One codebase (Expo / React Native, TypeScript) builds both the Android and the iOS app. It talks to the same API as the website (`https://api-demo.fyndmytrip.in/api` by default) and books the same way as the storefront in `storefront/`.
 
 ## What the app does
 
@@ -14,6 +14,34 @@ One codebase (Expo / React Native, TypeScript) builds both the Android and the i
 - **My Trips**: upcoming and past bookings, pay for a held booking, download documents, cancel with the refund quote shown first (refund goes to the wallet).
 - **Account**: sign in (with two-factor code if turned on), create account, forgot password, wallet balance, currency, help and legal pages, sign out, and **delete my account** (Apple and Google require this in-app).
 - **Currency**: prices show in the currency suggested for the phone's country (INR in India, USD/AED/GBP… elsewhere) and can be changed under Account. English only.
+
+## Customers and partners in one app
+
+The sign-in screen asks **Customer** or **Partner / Agent**. Partners use their partner-portal login. Anyone with a partner role (agent, sub-agent, white-label partner admin, partner staff, API partner staff, FyndMyTrip staff) gets:
+
+- a **Partner** tab: wallet balance, credit available and due date, bookings / sales / commission / markup for today, this week, this month or the quarter, bookings on hold waiting for payment, quick "book for a customer" buttons, recent bookings, and a link to the partner portal for everything else (markups, sub-agents and staff, top-up, reports, website, shared services);
+- **Bookings** (instead of My Trips) for their whole account, searchable by booking ID, customer email or phone;
+- booking **for a customer**: the contact fields start empty so the ticket goes to the customer, payment from wallet **and credit**, and **Ticket without fare** on the confirmation;
+- B2B fare lines (airline fare, airline taxes, convenience fee) where their login can see the supplier cost; otherwise the same Base Fare lines as customers.
+
+What a partner can search and book (which suppliers and services are shared with their account) is decided by the API from their login, so the app follows whatever is switched on for them in the admin.
+
+## White-label apps
+
+A white-label partner's own app is this same code built with their settings (`app.config.js`):
+
+| Setting | Example |
+|---|---|
+| `EXPO_PUBLIC_STOREFRONT_HOST` | `acmetravel.com` (their website domain; brand, logo, prices and inventory come from their account) |
+| `EXPO_PUBLIC_WEBSITE_URL` | `https://acmetravel.com` |
+| `APP_NAME` | `Acme Travel` |
+| `APP_ID` | `com.acmetravel.app` (Android package and iOS bundle ID) |
+| `APP_PRIMARY_COLOR` | `#0055aa` |
+| `APP_ICON` | `./branding/acme/icon.png` (1024×1024) |
+
+The app then shows the partner's logo (or name) and never FyndMyTrip's. On GitHub, **Actions → Mobile apps → Run workflow** takes the same fields and produces that partner's APK. For their store listing, build with EAS under their own (or your) Google Play / Apple accounts.
+
+API partners integrate through the API; their staff can still sign in to the app as partners to see bookings and wallet.
 
 ## Settings
 
@@ -67,14 +95,14 @@ mkdir -p mobile/e2e/results && e2e/reset_db.sh
 (cd backend && CORS_ALLOWED_ORIGINS=http://127.0.0.1:8040 DB_CONNECTION=sqlite DB_DATABASE=$E2E_DB php artisan serve --port=8010) &
 (cd mobile && EXPO_PUBLIC_API_BASE=http://127.0.0.1:8010/api npx expo export --platform web --output-dir dist-web)
 python3 e2e/spa_server.py mobile/dist-web 8040 &
-(cd mobile && node e2e/app_e2e.js)    # guest flight, guest bus with seats, cab needs account, hotel by wallet + cancel, holiday pay-later, USD, account
+(cd mobile && node e2e/app_e2e.js)    # 9 journeys: guest flight, guest bus with seats, cab needs account, hotel by wallet + cancel, holiday pay-later, USD, account, agent books for a customer, customer has no Partner tab
 ```
 
 ## Layout
 
-- `app/`: screens (expo-router). `(tabs)/` = Book, My Trips, Account; then `results`, `details`, `travellers`, `payment`, `done`, `trip`, `login`.
+- `app/`: screens (expo-router). `(tabs)/` = Book, Partner (partners only), My Trips / Bookings, Account; then `results`, `details`, `travellers`, `payment`, `done`, `trip`, `login`.
 - `src/services.ts`: every service's search fields, offer reading and hold request (a port of `storefront/js/services.js`; change both together).
 - `src/api.ts`, `src/store.tsx`, `src/money.ts`, `src/fare.ts`: API client, sign-in/currency state, money formatting, fare lines.
 - `src/components/`: form fields, airport picker, date picker, Razorpay sheet.
 
-Not in this first version: push notifications, agent (B2B) screens, Google/Apple sign-in. Each can be added on top.
+Not in this version: push notifications, Google/Apple sign-in, managing sub-agents and markups inside the app (done in the partner portal). Each can be added on top.

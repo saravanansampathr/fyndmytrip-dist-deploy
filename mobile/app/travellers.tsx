@@ -17,17 +17,18 @@ const pretty = (v: string) => v.replace(/_/g, ' ');
 export default function Travellers() {
   const { svc: key } = useLocalSearchParams<{ svc: string }>();
   const svc = SERVICES[key || 'flight'];
-  const { user, signIn, toast } = useApp();
+  const { user, partner, signIn, toast } = useApp();
   const pick = flow.pick;
   const count = pick ? svc.pax(pick.query) : 1;
   const [people, setPeople] = useState<Record<string, string>[]>(() => Array.from({ length: count }, (_, i) => {
     const p: Record<string, string> = {};
     for (const [name, , type, opts] of svc.traveller) p[name] = type === 'select' && opts ? opts[0] : '';
-    if (i === 0 && user) { p.name = user.name; p.first_name = user.name.split(' ')[0]; p.last_name = user.name.split(' ').slice(1).join(' '); }
+    if (i === 0 && user && !partner) { p.name = user.name; p.first_name = user.name.split(' ')[0]; p.last_name = user.name.split(' ').slice(1).join(' '); }
     return p;
   }));
-  const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  // A partner books for a customer: the ticket goes to the customer's contact.
+  const [email, setEmail] = useState(partner ? '' : user?.email || '');
+  const [phone, setPhone] = useState(partner ? '' : user?.phone || '');
   const [busy, setBusy] = useState(false);
 
   if (!pick || pick.svc !== svc.key) return <Empty title="Please start your search again" />;
@@ -67,7 +68,7 @@ export default function Travellers() {
         </Card>
 
         {user ? (
-          <Card><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}><Ionicons name="person-circle" size={22} color={C.ok} /><Text style={{ flex: 1 }} testID="booking-as">Booking as <Text style={{ fontWeight: '700' }}>{user.name}</Text></Text></View></Card>
+          <Card><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}><Ionicons name="person-circle" size={22} color={C.ok} /><Text style={{ flex: 1 }} testID="booking-as">{partner ? 'Booking for a customer as ' : 'Booking as '}<Text style={{ fontWeight: '700' }}>{user.name}</Text>{partner ? '. Paid from your wallet or credit; the ticket goes to the customer contact below.' : ''}</Text></View></Card>
         ) : (
           <Card>
             <H2>{canGuest ? 'Sign in or continue as a guest' : 'Sign in to continue'}</H2>
@@ -88,8 +89,8 @@ export default function Travellers() {
         ))}
 
         <Card>
-          <H2>Contact details</H2>
-          <Muted style={{ marginBottom: 10 }}>We send your ticket and updates here.</Muted>
+          <H2>{partner ? "Customer's contact details" : 'Contact details'}</H2>
+          <Muted style={{ marginBottom: 10 }}>{partner ? 'The ticket and updates are sent here. Use your own email to keep the ticket yourself.' : 'We send your ticket and updates here.'}</Muted>
           <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" testID="c-email" />
           <Input label="Mobile" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+91" autoComplete="tel" testID="c-phone" />
         </Card>

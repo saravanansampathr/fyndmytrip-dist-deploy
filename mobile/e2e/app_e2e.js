@@ -12,6 +12,7 @@ const results = [];
 const tid = (id) => `[data-testid="${id}"]`;
 
 async function run(name, fn) {
+  if (process.env.ONLY && !name.includes(process.env.ONLY)) return;
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ ...devices['Pixel 7'], deviceScaleFactor: 1, locale: 'en-IN', timezoneId: 'Asia/Kolkata' });
   const page = await ctx.newPage();
@@ -189,6 +190,55 @@ async function payAndConfirm(page, method) {
     await page.locator(tid('acct-logout')).click();
     await page.locator(tid('acct-login')).waitFor({ timeout: 10000 });
     return { name, wallet };
+  });
+
+
+  await run('partner (agent) books for a customer from wallet', async (page) => {
+    await page.goto(APP + '/login?who=partner');
+    await page.locator(tid('a-email')).fill('agent@fyndmytrip.com');
+    await page.locator(tid('a-password')).fill('password');
+    await page.locator(tid('a-submit')).click();
+    await page.locator(tid('partner-wallet')).waitFor({ timeout: 20000 });
+    await page.locator(tid('partner-count')).waitFor({ timeout: 20000 });
+    const walletBefore = await text(page, 'partner-wallet');
+    await shot(page, '11-partner-home');
+    await page.locator(tid('quick-flight')).click();
+    await page.locator(tid('search-btn')).waitFor({ timeout: 20000 });
+    await page.locator(tid('search-btn')).click();
+    await page.locator(tid('result-card')).first().waitFor({ timeout: 30000 });
+    await page.locator(tid('result-card')).first().click();
+    await page.locator(tid('continue-btn')).click();
+    await page.locator(tid('booking-as')).waitFor();
+    const email = await page.locator(tid('c-email')).inputValue();
+    if (email) throw new Error('customer email should start empty for a partner, got ' + email);
+    await fillTravellers(page, { 'p0-first_name': 'Meena', 'p0-last_name': 'Iyer', 'c-email': 'meena.customer@example.com' });
+    await page.locator(tid('to-payment')).click();
+    await page.locator(tid('pay-total')).waitFor({ timeout: 20000 });
+    await shot(page, '12-partner-payment');
+    const r = await payAndConfirm(page, 'fmt_wallet');
+    await page.getByText('Ticket without fare').waitFor({ timeout: 10000 });
+    await shot(page, '13-partner-confirmed');
+    // the booking shows in the partner's Bookings, found by its ID
+    await page.goto(APP + '/trips');
+    await page.locator(tid('trips-search')).fill(r.ref);
+    await page.waitForTimeout(1500);
+    await page.locator(tid('trip-row')).first().waitFor({ timeout: 20000 });
+    const rows = await page.locator(tid('trip-row')).count();
+    await page.goto(APP + '/partner');
+    await page.locator(tid('partner-recent')).first().waitFor({ timeout: 20000 });
+    await page.waitForTimeout(1000);
+    const walletAfter = await text(page, 'partner-wallet');
+    if (num(walletAfter) >= num(walletBefore)) throw new Error(`wallet not charged: ${walletBefore} -> ${walletAfter}`);
+    return { ...r, rows, walletBefore, walletAfter, count: await text(page, 'partner-count') };
+  });
+
+  await run('customer login does not show the Partner tab', async (page) => {
+    await signIn(page);
+    await page.goto(APP + '/account');
+    await page.locator(tid('acct-name')).waitFor();
+    const partnerTab = await page.locator('a[href="/partner"]').count();
+    if (partnerTab) throw new Error('customer sees Partner tab');
+    return { partnerTab };
   });
 
   fs.writeFileSync(path.join(OUT, 'app_results.json'), JSON.stringify(results, null, 2));

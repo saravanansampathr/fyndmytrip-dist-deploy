@@ -1,7 +1,7 @@
 // Home: pick a service, search, popular searches, holiday packages, offers.
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/api';
@@ -12,6 +12,7 @@ import { money } from '../../src/money';
 import { SearchForm } from '../../src/components/SearchForm';
 import { Card, H2, Muted } from '../../src/components/ui';
 import { C } from '../../src/theme';
+import { WHITE_LABEL } from '../../src/config';
 
 const HEAD: Record<string, string> = {
   flight: 'Fly anywhere, for less', hotel: 'Stays you will love', bus: 'Your seat, your journey', cab: 'Outstation cabs, door to door',
@@ -20,7 +21,9 @@ const HEAD: Record<string, string> = {
 
 export default function Home() {
   const { brand, currency } = useApp();
-  const [svcKey, setSvc] = useState('flight');
+  const { s: sParam } = useLocalSearchParams<{ s?: string }>();
+  const [svcKey, setSvc] = useState(sParam && SERVICES[sParam] ? sParam : 'flight');
+  useEffect(() => { if (sParam && SERVICES[sParam]) setSvc(sParam); }, [sParam]);
   const [pkgs, setPkgs] = useState<any[] | null>(null);
   const [offers, setOffers] = useState<any[]>([]);
   const svc = SERVICES[svcKey];
@@ -40,7 +43,9 @@ export default function Home() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
         <View style={st.top}>
-          <Image source={require('../../assets/logo.png')} style={{ width: 150, height: 38 }} resizeMode="contain" accessibilityLabel={brand.name} />
+          {brand.logo_url ? <Image source={{ uri: brand.logo_url }} style={{ width: 150, height: 38 }} resizeMode="contain" accessibilityLabel={brand.name} testID="brand-logo" />
+            : WHITE_LABEL ? <Text style={{ fontSize: 20, fontWeight: '800', color: C.primary }} testID="brand-name">{brand.name}</Text>
+            : <Image source={require('../../assets/logo.png')} style={{ width: 150, height: 38 }} resizeMode="contain" accessibilityLabel={brand.name} />}
           <Text style={st.cur} accessibilityLabel={`Prices in ${currency}`}>{currency}</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.svcRow}>

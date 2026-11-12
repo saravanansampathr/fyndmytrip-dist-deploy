@@ -9,6 +9,7 @@ import { api, setToken, setUnauthorizedHandler, User } from './api';
 import { secure, prefs } from './storage';
 import { fx } from './money';
 import { C } from './theme';
+import { isPartner } from './roles';
 
 export const flow: {
   offers: Record<string, any[]>;
@@ -22,6 +23,7 @@ type Brand = { name: string; [k: string]: any };
 type Ctx = {
   ready: boolean;
   user: User | null;          // a real signed-in account (never a guest session)
+  partner: boolean;           // agent, sub-agent, white-label, API partner or staff
   hasSession: boolean;        // any token, guest or member
   brand: Brand;
   currency: string;
@@ -96,8 +98,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // signed-in account (see backend GuestCheckoutService).
   const user = rawUser && !rawUser.is_guest ? rawUser : null;
   const brandName = String(brand.name || 'FyndMyTrip').replace(/\s*\((master|default)\)\s*$/i, '');
-  const value = useMemo(() => ({ ready, user, hasSession, brand: { ...brand, name: brandName }, currency, currencies, setCurrency, signIn, signOut, toast }),
-    [ready, user, hasSession, brand, brandName, currency, currencies, setCurrency, signIn, signOut, toast]);
+  const partner = isPartner(user);
+  const value = useMemo(() => ({ ready, user, partner, hasSession, brand: { ...brand, name: brandName }, currency, currencies, setCurrency, signIn, signOut, toast }),
+    [ready, user, partner, hasSession, brand, brandName, currency, currencies, setCurrency, signIn, signOut, toast]);
 
   return (
     <AppCtx.Provider value={value}>

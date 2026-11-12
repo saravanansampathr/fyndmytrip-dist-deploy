@@ -23,14 +23,14 @@ const METHODS: Record<string, [string, any, string]> = {
   debit_card: ['Debit card', 'card-outline', 'All major Indian banks'],
   netbanking: ['Net banking', 'business-outline', '50+ banks'],
   international_card: ['International card', 'globe-outline', 'Cards issued outside India'],
-  fmt_wallet: ['My wallet', 'wallet-outline', 'Pay instantly from your account balance'],
+  fmt_wallet: ['Wallet', 'wallet-outline', 'Pay instantly from your account balance (and credit, for partners)'],
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Payment() {
   const { svc: key, id } = useLocalSearchParams<{ svc: string; id: string }>();
   const svc = SERVICES[key || 'flight'];
-  const { user, hasSession, toast } = useApp();
+  const { user, partner, hasSession, toast } = useApp();
   const [b, setB] = useState<any>(null);
   const [err, setErr] = useState('');
   const [wallet, setWallet] = useState<any>(null);
@@ -58,7 +58,8 @@ export default function Payment() {
   if (!b) return <Empty icon="hourglass" title="Loading your booking…" />;
 
   const total = Number(b.total_amount);
-  const bal = wallet ? Number(wallet.balance ?? wallet.available_balance ?? 0) : 0;
+  // Partners can also spend their credit line.
+  const bal = wallet ? Number((partner ? wallet.available_to_spend : null) ?? wallet.balance ?? 0) : 0;
   const methods = Object.keys(METHODS).filter((m) => m !== 'fmt_wallet' || (wallet && !b.is_international && bal >= total));
   const offer = flow.booking?.offer;
 
@@ -109,9 +110,9 @@ export default function Payment() {
           <Row label="Booking ID" value={String(b.booking_code || b.booking_reference)} testID="pay-ref" />
           {b.travel_date_start ? <Row label="Travel date" value={fmtDate(b.travel_date_start)} /> : null}
           {b.passenger_count != null ? <Row label="Travellers" value={String(b.passenger_count)} /> : null}
-          {fareRows(b).map((r) => <Row key={r.label} label={r.label} value={(r.amount < 0 ? '−' : '') + money(Math.abs(r.amount), b.currency)} />)}
+          {fareRows(b, partner).map((r) => <Row key={r.label} label={r.label} value={(r.amount < 0 ? '−' : '') + money(Math.abs(r.amount), b.currency)} />)}
           <Row label="Total payable" value={money(total, b.currency)} bold testID="pay-total" />
-          {wallet ? <Muted style={{ marginTop: 6 }}>Wallet balance: {money(bal)}</Muted> : null}
+          {wallet ? <Muted style={{ marginTop: 6 }}>{partner ? 'Wallet and credit available' : 'Wallet balance'}: {money(bal)}</Muted> : null}
         </Card>
         <Card>
           <H2>How would you like to pay?</H2>
