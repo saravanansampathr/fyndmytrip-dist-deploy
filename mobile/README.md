@@ -57,6 +57,10 @@ They can also be set at build time with `EXPO_PUBLIC_API_BASE`, `EXPO_PUBLIC_STO
 
 App identity: name **FyndMyTrip**, Android package and iOS bundle ID **`in.fyndmytrip.app`** (change in `app.json` before the first store upload if you want another).
 
+## Publishing to Google Play and the App Store
+
+See [STORE.md](STORE.md): what to create once in Play Console and App Store Connect, which GitHub secrets to add, and the **Mobile store release** workflow that signs and uploads both apps. Listing text, data safety answers and screenshots are in [store/](store/).
+
 ## Builds
 
 **Automatic (GitHub Actions, `.github/workflows/mobile-apps.yml`).** Every change under `mobile/` type-checks the app, builds an Android APK and an iOS Simulator build. Open the run under the repo's **Actions** tab and download **fyndmytrip-android-apk** to install on any Android phone (allow "install unknown apps"). The workflow can also be run by hand with a different API address.
@@ -95,7 +99,8 @@ mkdir -p mobile/e2e/results && e2e/reset_db.sh
 (cd backend && CORS_ALLOWED_ORIGINS=http://127.0.0.1:8040 DB_CONNECTION=sqlite DB_DATABASE=$E2E_DB php artisan serve --port=8010) &
 (cd mobile && EXPO_PUBLIC_API_BASE=http://127.0.0.1:8010/api npx expo export --platform web --output-dir dist-web)
 python3 e2e/spa_server.py mobile/dist-web 8040 &
-(cd mobile && node e2e/app_e2e.js)    # 9 journeys: guest flight, guest bus with seats, cab needs account, hotel by wallet + cancel, holiday pay-later, USD, account, agent books for a customer, customer has no Partner tab
+(cd mobile && node e2e/app_e2e.js)    # 10 journeys: guest flight, guest bus with seats, cab needs account, hotel by wallet + cancel, holiday pay-later, USD, account, agent books for a customer, customer has no Partner tab, services switched off for the account are hidden
+(cd mobile && node e2e/store_screenshots.js)   # store screenshots into store/screenshots/
 ```
 
 ## Layout
