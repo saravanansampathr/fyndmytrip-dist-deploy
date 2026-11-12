@@ -12,16 +12,21 @@ module.exports = ({ config }) => {
   const wl = !!e.EXPO_PUBLIC_STOREFRONT_HOST && e.EXPO_PUBLIC_STOREFRONT_HOST !== config.extra.storefrontHost;
   const id = e.APP_ID || (config.ios && config.ios.bundleIdentifier);
   const icon = e.APP_ICON || config.icon;
+  // Store builds: APP_VERSION is the version people see (1.0.0), APP_BUILD_NUMBER
+  // must go up on every upload (the release workflow uses its run number).
+  const build = e.APP_BUILD_NUMBER ? parseInt(e.APP_BUILD_NUMBER, 10) : null;
   return {
     ...config,
+    version: e.APP_VERSION || config.version,
     name: e.APP_NAME || config.name,
     slug: e.APP_SLUG || config.slug,
     scheme: e.APP_SCHEME || config.scheme,
     icon,
-    ios: { ...config.ios, bundleIdentifier: id },
+    ios: { ...config.ios, bundleIdentifier: id, ...(build ? { buildNumber: String(build) } : {}) },
     android: {
       ...config.android,
       package: id,
+      ...(build ? { versionCode: build } : {}),
       adaptiveIcon: { ...config.android.adaptiveIcon, foregroundImage: e.APP_ADAPTIVE_ICON || (e.APP_ICON ? icon : config.android.adaptiveIcon.foregroundImage) },
     },
     extra: {

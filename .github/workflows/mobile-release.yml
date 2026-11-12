@@ -1,0 +1,154 @@
+# Store release of the FyndMyTrip app (or a white-label partner's app).
+# Run it by hand: Actions -> "Mobile store release" -> Run workflow.
+#
+#   Android: signed .aab, uploaded to Google Play as a draft on the Internal
+#            testing track (promote it to Production in Play Console).
+#   iOS:     signed with automatic signing and uploaded to App Store Connect,
+#            where it appears under TestFlight (submit it for review there).
+#
+# Repository secrets it needs (Settings -> Secrets and variables -> Actions):
+#   Android  ANDROID_UPLOAD_KEYSTORE_BASE64, ANDROID_UPLOAD_KEYSTORE_PASSWORD,
+#            ANDROID_UPLOAD_KEY_ALIAS, ANDROID_UPLOAD_KEY_PASSWORD,
+#            PLAY_SERVICE_ACCOUNT_JSON (without it the .aab is only attached to the run)
+#   iOS      APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8
+# See mobile/STORE.md for how to get each one.
+name: Mobile store release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Which store'
+        type: choice
+        options: [both, android, ios]
+        default: both
+      version:
+        description: 'Version shown in the store, e.g. 1.0.0'
+        default: '1.0.0'
+      api_base:
+        description: 'API the store app talks to (the LIVE API, not the demo)'
+        required: true
+      storefront_host:
+        description: 'Website domain the app belongs to, e.g. fyndmytrip.com (white-label: the partner domain)'
+        required: true
+      website_url:
+        description: 'Website URL for Terms, Privacy and Contact, e.g. https://fyndmytrip.com'
+        required: true
+      app_name:
+        description: 'White-label only: app name (empty = FyndMyTrip)'
+        default: ''
+      app_id:
+        description: 'White-label only: package / bundle ID (empty = in.fyndmytrip.app)'
+        default: ''
+      primary_color:
+        description: 'White-label only: main colour, e.g. #0055aa'
+        default: ''
+
+env:
+  EXPO_PUBLIC_API_BASE: ${{ inputs.api_base }}
+  EXPO_PUBLIC_STOREFRONT_HOST: ${{ inputs.storefront_host }}
+  EXPO_PUBLIC_WEBSITE_URL: ${{ inputs.website_url }}
+  APP_NAME: ${{ inputs.app_name }}
+  APP_ID: ${{ inputs.app_id }}
+  APP_PRIMARY_COLOR: ${{ inputs.primary_color }}
+  APP_VERSION: ${{ inputs.version }}
+  # Every upload needs a higher build number than the last one.
+  APP_BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  android:
+    if: inputs.platform != 'ios'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - name: Check the Android secrets are set
+        run: |
+          for v in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::Missing Android upload key secret ($v). See mobile/STORE.md."; exit 1; }
+          done
+        working-directory: .
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npx expo prebuild --platform android --no-install
+      - name: Build the signed app bundle
+        working-directory: mobile/android
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          ./gradlew bundleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/upload.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          rm -f "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-store-bundle
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
+      - name: Upload to Google Play (Internal testing, draft)
+        if: env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ inputs.app_id || 'in.fyndmytrip.app' }}
+          releaseFiles: mobile/android/app/build/outputs/bundle/release/*.aab
+          track: internal
+          status: draft
+
+  ios:
+    if: inputs.platform != 'android'
+    runs-on: macos-latest
+    defaults: { run: { working-directory: mobile } }
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Check the Apple secrets are set
+        run: |
+          for v in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!v}" ] || { echo "::error::Missing Apple secret ($v). See mobile/STORE.md."; exit 1; }
+          done
+        working-directory: .
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - run: npm ci
+      - run: npx expo prebuild --platform ios
+      - name: Archive, sign and upload to App Store Connect
+        working-directory: mobile/ios
+        run: |
+          set -o pipefail
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          WS=$(ls -d *.xcworkspace | head -1); SCHEME="${WS%.xcworkspace}"
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" archive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic "${AUTH[@]}" | tail -60
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}" | tail -40
+          rm -f "$KEY"
