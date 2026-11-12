@@ -33,6 +33,7 @@ return [
         'tenant.create' => 'Create sub-accounts',
         'tenant.manage_users' => 'Add and edit users',
         'supplier.configure' => 'Supplier connections',
+        'inventory.assign' => 'Share inventories with accounts below',
         'payment_gateway.configure' => 'Payment gateways',
         'notification_gateway.configure' => 'SMS, WhatsApp and email providers',
     ],

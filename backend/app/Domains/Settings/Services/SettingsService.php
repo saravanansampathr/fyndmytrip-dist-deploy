@@ -87,6 +87,13 @@ class SettingsService
                     'message' => 'We are upgrading the site and will be back shortly. Existing bookings are safe.',
                 ],
             ],
+            // Inventory sharing (Accounts & inventory): what an account
+            // gets for an inventory nobody has switched on or off for it.
+            // 'all' = every inventory the master has (how the platform
+            // always worked); 'none' = nothing until an admin assigns it.
+            'inventory' => [
+                'default_access' => 'all',
+            ],
             'currency' => [
                 // Currencies customers can choose. The pricing currency
                 // (INR) is always available.

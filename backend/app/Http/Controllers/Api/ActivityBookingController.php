@@ -196,12 +196,9 @@ class ActivityBookingController extends Controller
             ->where('status', ActivityInventoryItem::STATUS_ACTIVE)
             ->where('city', $city)
             ->whereDate('activity_date', $activityDate)
-            ->where(function ($q) use ($tenantId) {
-                $q->whereNull('tenant_id')
-                    ->orWhere('tenant_id', $tenantId)
-                    ->orWhere('share_with_network', true)
-                    ->when(is_null($tenantId), fn ($q2) => $q2->orWhere('share_on_platform_site', true));
-            })
+            // Own rows always; the master's and network-shared rows only
+            // when 'own_inventory' is shared with this account.
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, $tenantId))
             ->get();
 
         return $items->filter->isSellable()->map(fn (ActivityInventoryItem $item) => $item->toActivityOfferArray())->values()->all();
@@ -517,7 +514,10 @@ class ActivityBookingController extends Controller
     {
         $id = (int) str_replace('inv-', '', $externalId);
 
-        return ActivityInventoryItem::query()->findOrFail($id);
+        // Only stock this account may sell (see InventoryAccessService).
+        return ActivityInventoryItem::query()
+            ->tap(fn ($q) => app(\App\Domains\Tenancy\Services\InventoryAccessService::class)->scopeOwnInventory($q, app(\App\Domains\Tenancy\Services\TenantContext::class)->id()))
+            ->findOrFail($id);
     }
 
     protected function ownInventoryPriceCheck(string $externalId): FareRuleResult

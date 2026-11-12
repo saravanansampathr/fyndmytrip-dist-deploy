@@ -184,6 +184,10 @@ Route::middleware('tenant')->group(function () {
     // guest page — StorefrontHeader and the Login/Register/Forgot-/Reset-
     // Password screens — see WhiteLabelController::current()'s docblock.
     Route::get('/whitelabel/current', [WhiteLabelController::class, 'current']);
+    // Which services and inventories this account (signed-in user's
+    // account, else the site being visited) can sell. Used by the partner
+    // portal, storefronts and the mobile app to hide what is switched off.
+    Route::get('/account/services', [\App\Http\Controllers\Api\AccountInventoryController::class, 'mine']);
 
     // Phase 2: banners, offers, FAQ and SEO text; public images; agent sign-up.
     Route::get('/content', [\App\Http\Controllers\Api\ContentController::class, 'index']);
@@ -236,6 +240,13 @@ Route::middleware('tenant')->group(function () {
         Route::get('/admin/roles', [\App\Http\Controllers\Api\RolesController::class, 'index']);
         Route::put('/admin/roles/{role}', [\App\Http\Controllers\Api\RolesController::class, 'update']);
         Route::post('/admin/roles/{role}/reset', [\App\Http\Controllers\Api\RolesController::class, 'reset']);
+        // Accounts & inventory: share the master's inventories and services
+        // with each account below it, and monitor every account.
+        Route::get('/admin/accounts', [\App\Http\Controllers\Api\AccountInventoryController::class, 'index']);
+        Route::post('/admin/accounts/bulk', [\App\Http\Controllers\Api\AccountInventoryController::class, 'bulk']);
+        Route::put('/admin/accounts/default-access', [\App\Http\Controllers\Api\AccountInventoryController::class, 'setDefault']);
+        Route::get('/admin/accounts/{tenant}', [\App\Http\Controllers\Api\AccountInventoryController::class, 'show'])->whereNumber('tenant');
+        Route::put('/admin/accounts/{tenant}', [\App\Http\Controllers\Api\AccountInventoryController::class, 'update'])->whereNumber('tenant');
         Route::put('/tenants/{tenant}/users/{user}/rights', [TenantUserController::class, 'rights']);
         // Phase 3: rewards, fare alerts, marketing tags.
         Route::get('/loyalty', [\App\Http\Controllers\Api\LoyaltyController::class, 'show']);
